@@ -155,7 +155,6 @@ export function PostgresManager({
       const panelHost = resolvePanelHost(host.ip);
       setPanelIP(panelHost);
       const panelCredentials = credentialsWithPanelIP(credentials, panelHost);
-      setAdminInfo(panelCredentials);
 
       const connection = connectionURL(panelCredentials, panelCredentials.host, db.name);
       await copyText(`connection-${db.id}`, connection);
