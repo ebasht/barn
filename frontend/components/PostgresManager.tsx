@@ -112,6 +112,20 @@ export function PostgresManager({
     return `postgres://${encodeConnectionPart(info.user)}:${encodeConnectionPart(info.password)}@${connectionHost}:${info.port}/${encodeConnectionPart(database)}`;
   };
 
+  const credentialsWithPanelIP = (info: PgConnectionInfo, host: string) => ({
+    ...info,
+    host,
+    url: connectionURL(info, host, info.database),
+  });
+
+  const resolvePanelHost = (detectedIP: string) => {
+    const normalized = detectedIP.trim();
+    if (normalized && normalized !== "127.0.0.1" && normalized !== "::1") {
+      return normalized;
+    }
+    return window.location.hostname;
+  };
+
   const openAdminCredentials = async () => {
     setBusy(true);
     setError(null);
@@ -120,12 +134,9 @@ export function PostgresManager({
         api.getPgAdminCredentials(id),
         panelIP ? Promise.resolve({ ip: panelIP }) : api.getSystemHost(),
       ]);
-      setPanelIP(host.ip);
-      setAdminInfo({
-        ...info,
-        host: host.ip,
-        url: connectionURL(info, host.ip, info.database),
-      });
+      const panelHost = resolvePanelHost(host.ip);
+      setPanelIP(panelHost);
+      setAdminInfo(credentialsWithPanelIP(info, panelHost));
     } catch (e) {
       setError(e instanceof ApiError ? e.message : t("databases.loadFailed"));
     } finally {
@@ -138,13 +149,15 @@ export function PostgresManager({
     setError(null);
     try {
       const [credentials, host] = await Promise.all([
-        adminInfo ?? api.getPgAdminCredentials(id),
+        api.getPgAdminCredentials(id),
         panelIP ? Promise.resolve({ ip: panelIP }) : api.getSystemHost(),
       ]);
-      setAdminInfo(credentials);
-      setPanelIP(host.ip);
+      const panelHost = resolvePanelHost(host.ip);
+      setPanelIP(panelHost);
+      const panelCredentials = credentialsWithPanelIP(credentials, panelHost);
+      setAdminInfo(panelCredentials);
 
-      const connection = connectionURL(credentials, host.ip, db.name);
+      const connection = connectionURL(panelCredentials, panelCredentials.host, db.name);
       await copyText(`connection-${db.id}`, connection);
     } catch (e) {
       setError(e instanceof ApiError ? e.message : t("databases.loadFailed"));
