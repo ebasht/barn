@@ -683,6 +683,12 @@ export const en = {
     valueN: "Value {n}",
     addRow: "Add row",
     addEnvVar: "Add env var",
+    pasteList: "Paste list",
+    pasteTitle: "Add a list",
+    pasteHint: "Paste one variable per line in KEY=VALUE format. Existing keys will be replaced.",
+    applyList: "Add and replace",
+    importFailed: "Could not parse the list. Check the KEY=VALUE format.",
+    replaceConfirm: 'Variable "{key}" already exists. Replace it?',
   },
   logs: {
     container: "Container",

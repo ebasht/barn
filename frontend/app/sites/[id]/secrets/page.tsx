@@ -131,6 +131,7 @@ export default function SiteSecretsPage() {
           keyPlaceholder={t("secrets.keyPlaceholder")}
           valuePlaceholder={t("secrets.valuePlaceholder")}
           addLabel={t("secrets.addAnother")}
+          existingKeys={secrets.map((secret) => secret.key)}
         />
         <button type="submit" className="btn" disabled={saving}>
           {saving ? t("common.saving") : t("secrets.saveSecrets")}

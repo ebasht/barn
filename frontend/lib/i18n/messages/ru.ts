@@ -686,6 +686,12 @@ export const ru: Messages = {
     valueN: "Значение {n}",
     addRow: "Добавить строку",
     addEnvVar: "Добавить env var",
+    pasteList: "Вставить списком",
+    pasteTitle: "Добавить списком",
+    pasteHint: "Вставьте по одной переменной на строку в формате KEY=VALUE. Существующие ключи будут заменены.",
+    applyList: "Добавить и заменить",
+    importFailed: "Не удалось разобрать список. Проверьте формат строк KEY=VALUE.",
+    replaceConfirm: "Переменная «{key}» уже существует. Заменить?",
   },
   logs: {
     container: "Контейнер",
