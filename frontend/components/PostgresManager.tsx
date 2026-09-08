@@ -103,12 +103,29 @@ export function PostgresManager({
     }
   };
 
+  const connectionURL = (info: PgConnectionInfo, host: string, database: string) => {
+    const encodeConnectionPart = (value: string) =>
+      encodeURIComponent(value).replace(/[!'()*]/g, (char) =>
+        `%${char.charCodeAt(0).toString(16).toUpperCase()}`,
+      );
+    const connectionHost = host.includes(":") ? `[${host}]` : host;
+    return `postgres://${encodeConnectionPart(info.user)}:${encodeConnectionPart(info.password)}@${connectionHost}:${info.port}/${encodeConnectionPart(database)}`;
+  };
+
   const openAdminCredentials = async () => {
     setBusy(true);
     setError(null);
     try {
-      const info = await api.getPgAdminCredentials(id);
-      setAdminInfo(info);
+      const [info, host] = await Promise.all([
+        api.getPgAdminCredentials(id),
+        panelIP ? Promise.resolve({ ip: panelIP }) : api.getSystemHost(),
+      ]);
+      setPanelIP(host.ip);
+      setAdminInfo({
+        ...info,
+        host: host.ip,
+        url: connectionURL(info, host.ip, info.database),
+      });
     } catch (e) {
       setError(e instanceof ApiError ? e.message : t("databases.loadFailed"));
     } finally {
@@ -127,12 +144,7 @@ export function PostgresManager({
       setAdminInfo(credentials);
       setPanelIP(host.ip);
 
-      const encodeConnectionPart = (value: string) =>
-        encodeURIComponent(value).replace(/[!'()*]/g, (char) =>
-          `%${char.charCodeAt(0).toString(16).toUpperCase()}`,
-        );
-      const connectionHost = host.ip.includes(":") ? `[${host.ip}]` : host.ip;
-      const connection = `postgres://${encodeConnectionPart(credentials.user)}:${encodeConnectionPart(credentials.password)}@${connectionHost}:${credentials.port}/${encodeConnectionPart(db.name)}`;
+      const connection = connectionURL(credentials, host.ip, db.name);
       await copyText(`connection-${db.id}`, connection);
     } catch (e) {
       setError(e instanceof ApiError ? e.message : t("databases.loadFailed"));
