@@ -815,6 +815,7 @@ export const en = {
     password: "Password",
     connUrl: "URL",
     copy: "Copy",
+    copyConnection: "Copy connection string",
     copied: "Copied",
     selectDatabase: "Database for connection",
     passwordOnce:

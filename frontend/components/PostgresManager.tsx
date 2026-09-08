@@ -38,6 +38,8 @@ export function PostgresManager({
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [confirmDeleteDb, setConfirmDeleteDb] = useState<PgDatabase | null>(null);
   const [adminInfo, setAdminInfo] = useState<PgConnectionInfo | null>(null);
+  const [panelIP, setPanelIP] = useState("");
+  const [copyingConnectionDbId, setCopyingConnectionDbId] = useState<string | null>(null);
   const [copied, setCopied] = useState<string | null>(null);
 
   const [dbName, setDbName] = useState("");
@@ -71,6 +73,7 @@ export function PostgresManager({
 
   useEffect(() => {
     void load();
+    void api.getSystemHost().then((host) => setPanelIP(host.ip)).catch(() => null);
     const timer = setInterval(() => {
       void api.getPgHealth(id).then(setHealth).catch(() => null);
     }, 30_000);
@@ -110,6 +113,31 @@ export function PostgresManager({
       setError(e instanceof ApiError ? e.message : t("databases.loadFailed"));
     } finally {
       setBusy(false);
+    }
+  };
+
+  const copyDatabaseConnection = async (db: PgDatabase) => {
+    setCopyingConnectionDbId(db.id);
+    setError(null);
+    try {
+      const [credentials, host] = await Promise.all([
+        adminInfo ?? api.getPgAdminCredentials(id),
+        panelIP ? Promise.resolve({ ip: panelIP }) : api.getSystemHost(),
+      ]);
+      setAdminInfo(credentials);
+      setPanelIP(host.ip);
+
+      const encodeConnectionPart = (value: string) =>
+        encodeURIComponent(value).replace(/[!'()*]/g, (char) =>
+          `%${char.charCodeAt(0).toString(16).toUpperCase()}`,
+        );
+      const connectionHost = host.ip.includes(":") ? `[${host.ip}]` : host.ip;
+      const connection = `postgres://${encodeConnectionPart(credentials.user)}:${encodeConnectionPart(credentials.password)}@${connectionHost}:${credentials.port}/${encodeConnectionPart(db.name)}`;
+      await copyText(`connection-${db.id}`, connection);
+    } catch (e) {
+      setError(e instanceof ApiError ? e.message : t("databases.loadFailed"));
+    } finally {
+      setCopyingConnectionDbId(null);
     }
   };
 
@@ -295,6 +323,16 @@ export function PostgresManager({
                             owner: {db.owner_role} · {formatDateTime(db.created_at)}
                           </div>
                         </div>
+                        <button
+                          type="button"
+                          className="btn btn-secondary"
+                          disabled={copyingConnectionDbId === db.id}
+                          onClick={() => void copyDatabaseConnection(db)}
+                        >
+                          {copied === `connection-${db.id}`
+                            ? t("databases.copied")
+                            : t("databases.copyConnection")}
+                        </button>
                       </div>
                       {expanded ? (
                         <div className="db-tables">

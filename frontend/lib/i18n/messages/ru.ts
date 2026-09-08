@@ -818,6 +818,7 @@ export const ru: Messages = {
     password: "Пароль",
     connUrl: "URL",
     copy: "Копировать",
+    copyConnection: "Копировать строку подключения",
     copied: "Скопировано",
     selectDatabase: "База для подключения",
     passwordOnce:
