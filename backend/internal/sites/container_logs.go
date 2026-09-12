@@ -15,6 +15,31 @@ import (
 	"github.com/ebash/barn/backend/internal/docker"
 )
 
+// ContainerLogSnapshot reads history without following the running container.
+func (s *Service) ContainerLogSnapshot(ctx context.Context, id uuid.UUID, limit int) ([]docker.ContainerLogLine, error) {
+	if s.docker == nil {
+		return nil, fmt.Errorf("container logs not configured")
+	}
+	site, err := s.queries.GetSite(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	if limit <= 0 {
+		limit = 100
+	}
+	if limit > 500 {
+		limit = 500
+	}
+	out := []docker.ContainerLogLine{}
+	err = s.docker.StreamContainerLogs(ctx, limit, false, docker.ContainerNamesForSite(site.Slug, site.PrimaryUrl), func(line docker.ContainerLogLine) error {
+		if len(out) < limit {
+			out = append(out, line)
+		}
+		return nil
+	})
+	return out, err
+}
+
 func (s *Service) StreamContainerLogs(ctx context.Context, siteID uuid.UUID, tail int, w io.Writer, flusher http.Flusher) error {
 	if s.docker == nil {
 		return fmt.Errorf("container logs not configured")

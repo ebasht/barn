@@ -19,6 +19,37 @@ type Service struct {
 	worker  *Worker
 }
 
+type LogPage struct {
+	Entries     []LogEntry `json:"entries"`
+	NextAfterID int64      `json:"next_after_id"`
+	HasMore     bool       `json:"has_more"`
+}
+
+func (s *Service) LogPage(ctx context.Context, id uuid.UUID, after int64, limit int) (LogPage, error) {
+	if _, err := s.Get(ctx, id); err != nil {
+		return LogPage{}, err
+	}
+	if limit <= 0 {
+		limit = 100
+	}
+	if limit > 500 {
+		limit = 500
+	}
+	rows, err := s.queries.QueryDeploymentLogPage(ctx, id, after, limit+1)
+	if err != nil {
+		return LogPage{}, err
+	}
+	page := LogPage{Entries: []LogEntry{}, NextAfterID: after, HasMore: len(rows) > limit}
+	if len(rows) > limit {
+		rows = rows[:limit]
+	}
+	for _, r := range rows {
+		page.Entries = append(page.Entries, LogEntry{ID: r.ID, Level: r.Level, Message: r.Message, CreatedAt: r.CreatedAt})
+		page.NextAfterID = r.ID
+	}
+	return page, nil
+}
+
 func NewService(queries *db.Queries, worker *Worker) *Service {
 	return &Service{queries: queries, worker: worker}
 }

@@ -8,6 +8,7 @@ import (
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/go-chi/cors"
 
+	"github.com/ebash/barn/backend/internal/barnmcp"
 	"github.com/ebash/barn/backend/internal/billing"
 	deploysvc "github.com/ebash/barn/backend/internal/deployments"
 	notifpkg "github.com/ebash/barn/backend/internal/notifications"
@@ -20,6 +21,7 @@ import (
 )
 
 type Handlers struct {
+	MCP           *MCPHandler
 	Sites         *SitesHandler
 	Secrets       *SecretsHandler
 	Deployments   *DeploymentsHandler
@@ -88,6 +90,12 @@ func NewRouter(h Handlers, apiToken string, corsOrigins []string) http.Handler {
 
 		r.Group(func(r chi.Router) {
 			r.Use(BearerTokenAuth(apiToken))
+			if h.MCP != nil {
+				r.Get("/mcp/settings", h.MCP.Get)
+				r.Put("/mcp/settings", h.MCP.Update)
+				r.Post("/mcp/key", h.MCP.Generate)
+				r.Delete("/mcp/key", h.MCP.Revoke)
+			}
 
 			r.Post("/auth/qr", h.QR.Create)
 
@@ -235,7 +243,7 @@ func NewRouter(h Handlers, apiToken string, corsOrigins []string) http.Handler {
 	return r
 }
 
-func Mount(logger *slog.Logger, apiToken string, corsOrigins []string, sites *sitesvc.Service, secrets *secretpkg.Service, deployments *deploysvc.Service, notifications *notifpkg.Service, systemSvc *syspkg.Service, databases *pgdb.Service, backups *panelbackup.Service, billingSvc *billing.Service, serversSvc *servers.Service, qr *QRHandler, hostRoot string) http.Handler {
+func Mount(logger *slog.Logger, apiToken string, corsOrigins []string, sites *sitesvc.Service, secrets *secretpkg.Service, deployments *deploysvc.Service, notifications *notifpkg.Service, systemSvc *syspkg.Service, databases *pgdb.Service, backups *panelbackup.Service, billingSvc *billing.Service, serversSvc *servers.Service, qr *QRHandler, hostRoot string, mcpSettings ...*barnmcp.SettingsService) http.Handler {
 	_ = logger
 	h := Handlers{
 		Sites:         NewSitesHandler(sites, secrets),
@@ -251,6 +259,9 @@ func Mount(logger *slog.Logger, apiToken string, corsOrigins []string, sites *si
 	if serversSvc != nil {
 		h.Servers = NewServersHandler(serversSvc)
 		h.ServersSvc = serversSvc
+	}
+	if len(mcpSettings) > 0 && mcpSettings[0] != nil {
+		h.MCP = NewMCPHandler(mcpSettings[0])
 	}
 	return NewRouter(h, apiToken, corsOrigins)
 }

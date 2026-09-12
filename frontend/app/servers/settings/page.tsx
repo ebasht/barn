@@ -5,6 +5,7 @@ import { useCallback, useEffect, useState } from "react";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { LocaleSwitcher } from "@/components/LocaleSwitcher";
 import { MobileQrModal } from "@/components/MobileQrModal";
+import { MCPSettingsCard } from "@/components/MCPSettingsCard";
 import { ServerStatusPanel } from "@/components/ServerStatusPanel";
 import { api, ApiError } from "@/lib/api";
 import { useServersMode } from "@/lib/servers-mode";
@@ -158,6 +159,8 @@ export default function ServersSettingsPage() {
           </div>
         </div>
       </div>
+
+      <MCPSettingsCard />
 
       <ServerStatusPanel />
 

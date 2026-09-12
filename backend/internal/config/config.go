@@ -11,6 +11,10 @@ type Config struct {
 	HTTPAddr             string
 	SecretsEncryptionKey string
 	APIToken             string
+	MCPToken             string
+	MCPAllowWrites       bool
+	MCPInstanceID        string
+	MCPInstanceName      string
 	CORSAllowedOrigins   []string
 	Deploy               DeployConfig
 }
@@ -28,6 +32,10 @@ type DeployConfig struct {
 }
 
 func Load() (Config, error) {
+	hostname, err := os.Hostname()
+	if err != nil || hostname == "" {
+		hostname = "barn"
+	}
 	deployMode := envOr("DEPLOY_MODE", "stub")
 	if deployMode != "stub" && deployMode != "real" {
 		return Config{}, fmt.Errorf("DEPLOY_MODE must be stub or real")
@@ -38,6 +46,10 @@ func Load() (Config, error) {
 		HTTPAddr:             envOr("HTTP_ADDR", ":8080"),
 		SecretsEncryptionKey: os.Getenv("SECRETS_ENCRYPTION_KEY"),
 		APIToken:             os.Getenv("API_TOKEN"),
+		MCPToken:             os.Getenv("BARN_MCP_TOKEN"),
+		MCPAllowWrites:       os.Getenv("BARN_MCP_ALLOW_WRITES") == "true",
+		MCPInstanceID:        envOr("BARN_MCP_INSTANCE_ID", hostname),
+		MCPInstanceName:      envOr("BARN_MCP_INSTANCE_NAME", hostname),
 		CORSAllowedOrigins:   parseCORSOrigins(os.Getenv("CORS_ALLOWED_ORIGINS")),
 		Deploy: DeployConfig{
 			Mode:                deployMode,
@@ -65,6 +77,9 @@ func Load() (Config, error) {
 		return Config{}, fmt.Errorf("API_TOKEN must be at least 16 characters")
 	}
 
+	if cfg.MCPToken != "" && (len(cfg.MCPToken) < 32 || cfg.MCPToken == cfg.APIToken) {
+		return Config{}, fmt.Errorf("BARN_MCP_TOKEN must be at least 32 characters and differ from API_TOKEN")
+	}
 	return cfg, nil
 }
 

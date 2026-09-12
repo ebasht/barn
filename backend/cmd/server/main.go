@@ -11,6 +11,7 @@ import (
 
 	"github.com/ebash/barn/backend/internal/api"
 	"github.com/ebash/barn/backend/internal/auth"
+	"github.com/ebash/barn/backend/internal/barnmcp"
 	"github.com/ebash/barn/backend/internal/billing"
 	"github.com/ebash/barn/backend/internal/config"
 	"github.com/ebash/barn/backend/internal/deployments"
@@ -166,10 +167,21 @@ func main() {
 
 	logger.Info("cors allowed origins", "origins", cfg.CORSAllowedOrigins)
 	qrSvc := auth.NewQRService(pool, cfg.APIToken)
-	handler := api.Mount(logger, cfg.APIToken, cfg.CORSAllowedOrigins, sitesSvc, secretsSvc, deploySvc, notifSvc, systemSvc, pgdbSvc, panelBackupSvc, billingSvc, serversSvc, api.NewQRHandler(qrSvc), cfg.Deploy.HostRoot)
+	mcpInstance := barnmcp.InstanceInfo{ID: cfg.MCPInstanceID, Name: cfg.MCPInstanceName}
+	if os.Getenv("BARN_MCP_INSTANCE_ID") == "" && cfg.MCPToken == "" {
+		mcpInstance.ID = ""
+	}
+	mcpSettings := barnmcp.NewSettingsService(pool, cfg.MCPToken, cfg.MCPAllowWrites, mcpInstance)
+	if err := mcpSettings.Ensure(ctx); err != nil {
+		logger.Warn("initialize MCP settings; apply migration 00028", "error", err)
+	}
+	handler := api.Mount(logger, cfg.APIToken, cfg.CORSAllowedOrigins, sitesSvc, secretsSvc, deploySvc, notifSvc, systemSvc, pgdbSvc, panelBackupSvc, billingSvc, serversSvc, api.NewQRHandler(qrSvc), cfg.Deploy.HostRoot, mcpSettings)
+	mux := http.NewServeMux()
+	mux.Handle("/mcp", barnmcp.ManagedHandler(mcpSettings.Access, cfg.CORSAllowedOrigins, sitesSvc, deploySvc, systemSvc))
+	mux.Handle("/", handler)
 	server := &http.Server{
 		Addr:              cfg.HTTPAddr,
-		Handler:           handler,
+		Handler:           mux,
 		ReadHeaderTimeout: 15 * time.Second,
 		ReadTimeout:       30 * time.Minute, // large SQL dump uploads
 		WriteTimeout:      0,

@@ -8,6 +8,16 @@ server {
     # DB dump restore uploads (API allows up to 512 MiB).
     client_max_body_size 512m;
 
+    location = /mcp {
+        proxy_pass http://127.0.0.1:{{API_PORT}};
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_buffering off;
+        proxy_cache off;
+        proxy_read_timeout 300s;
+    }
+
     location /api/ {
         proxy_pass http://127.0.0.1:{{API_PORT}};
         proxy_http_version 1.1;

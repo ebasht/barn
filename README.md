@@ -123,3 +123,7 @@ make dev-run  # API :8080 + UI :3000
 make release VERSION=v0.1.0
 git tag v0.1.0 && git push origin v0.1.0
 ```
+
+## MCP
+
+Connect AI clients to Barn over authenticated Streamable HTTP: [setup and Codex configuration](docs/barn-mcp.md).

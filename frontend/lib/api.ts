@@ -5,6 +5,7 @@ import {
 } from "./auth-token";
 import { normalizeSecretMeta, normalizeSite } from "./normalize";
 import type {
+ MCPSettings,
   ContainerActionResult,
   CreateSiteRequest,
   Deployment,
@@ -169,6 +170,11 @@ export async function verifyApiToken(token: string): Promise<VerifyResult> {
 }
 
 export const api = {
+  getMCPSettings: () => request<MCPSettings>("/api/mcp/settings", { cache: "no-store" }),
+  updateMCPSettings: (body: { instance_name: string; allow_writes: boolean }) =>
+    request<MCPSettings>("/api/mcp/settings", { method: "PUT", body: JSON.stringify(body) }),
+  generateMCPKey: () => request<{ token: string }>("/api/mcp/key", { method: "POST" }),
+  revokeMCPKey: () => request<void>("/api/mcp/key", { method: "DELETE" }),
   listSites: () => request<SiteListItem[]>("/api/sites"),
 
   listSitesHealth: () => request<SiteHealth[]>("/api/sites/health"),

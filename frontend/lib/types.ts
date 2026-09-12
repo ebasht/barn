@@ -792,3 +792,11 @@ export interface ServerInstallationLog {
   message: string;
   created_at: string;
 }
+
+export interface MCPSettings {
+ instance_id: string;
+ instance_name: string;
+ key_configured: boolean;
+ allow_writes: boolean;
+ key_created_at: string | null;
+}
