@@ -7,7 +7,9 @@ import (
 	"crypto/subtle"
 	"encoding/json"
 	"fmt"
+	"net"
 	"net/http"
+	"net/url"
 	"strings"
 	"sync"
 
@@ -76,12 +78,40 @@ type Access struct {
 	TokenHash []byte
 }
 
+func loopbackHost(host string) bool {
+	if hostname, _, err := net.SplitHostPort(host); err == nil {
+		host = hostname
+	}
+	host = strings.Trim(host, "[]")
+	return strings.EqualFold(host, "localhost") || net.ParseIP(host).IsLoopback()
+}
+
+// Allow the configured panel hosts behind a loopback reverse proxy, while
+// retaining DNS rebinding protection for all other non-local Host headers.
+func allowedProxyHost(r *http.Request, origins []string) bool {
+	addr, ok := r.Context().Value(http.LocalAddrContextKey).(net.Addr)
+	if !ok || !loopbackHost(addr.String()) || loopbackHost(r.Host) {
+		return true
+	}
+	for _, origin := range origins {
+		u, err := url.Parse(origin)
+		if err == nil && u.Host != "" && strings.EqualFold(u.Host, r.Host) {
+			return true
+		}
+	}
+	return false
+}
+
 // ManagedHandler verifies current database credentials on every request.
 func ManagedHandler(load func(context.Context) (Access, error), origins []string, s *sites.Service, d *deployments.Service, sys *system.Service) http.Handler {
 	var mu sync.Mutex
 	var cached InstanceInfo
 	var transport http.Handler
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if !allowedProxyHost(r, origins) {
+			http.Error(w, "Forbidden: invalid Host header", http.StatusForbidden)
+			return
+		}
 		access, err := load(r.Context())
 		if err != nil {
 			http.Error(w, "MCP settings unavailable", http.StatusServiceUnavailable)
@@ -226,5 +256,6 @@ func newTransport(writes bool, s *sites.Service, d *deployments.Service, sys *sy
 			return s.RestartContainer(ctx, id)
 		})
 	}
-	return mcp.NewStreamableHTTPHandler(func(*http.Request) *mcp.Server { return server }, &mcp.StreamableHTTPOptions{Stateless: true})
+	// Host validation above also permits configured panel domains behind nginx.
+	return mcp.NewStreamableHTTPHandler(func(*http.Request) *mcp.Server { return server }, &mcp.StreamableHTTPOptions{Stateless: true, DisableLocalhostProtection: true})
 }

@@ -30,7 +30,7 @@ location = /mcp {
 }
 ```
 
-Use HTTPS for remote connections. An Origin header, when supplied, must match `CORS_ALLOWED_ORIGINS`.
+Use HTTPS for remote connections. An Origin header, when supplied, must match `CORS_ALLOWED_ORIGINS`. When nginx connects to the API over loopback and forwards the public Host header, that panel host must also appear in `CORS_ALLOWED_ORIGINS` (including the port for nonstandard ports). Other non-local Host headers remain blocked to retain DNS rebinding protection.
 
 ## Connect Codex
 

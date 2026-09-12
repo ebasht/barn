@@ -2,6 +2,8 @@ package barnmcp
 
 import (
 	"encoding/json"
+	"io"
+	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
@@ -116,5 +118,53 @@ func TestInstanceInfoAndWrongPanelWrite(t *testing.T) {
 		if w.Code != 200 || !strings.Contains(w.Body.String(), tc.want) {
 			t.Fatalf("%d: %s", w.Code, w.Body.String())
 		}
+	}
+}
+
+// Use a real loopback listener so LocalAddrContextKey matches production nginx.
+func TestReverseProxyPublicHost(t *testing.T) {
+	token := strings.Repeat("x", 32)
+	server := httptest.NewServer(Handler(token, false, []string{"https://panel.eugen-bash.com", "http://panel.example:8888"}, nil, nil, nil, InstanceInfo{ID: "main", Name: "Main"}))
+	defer server.Close()
+	for _, tc := range []struct {
+		host, origin, auth string
+		want               int
+	}{
+		{"panel.eugen-bash.com", "", "Bearer " + token, 200},
+		{"panel.example:8888", "", "Bearer " + token, 200},
+		{"localhost", "", "Bearer " + token, 200},
+		{"127.0.0.1:8080", "", "Bearer " + token, 200},
+		{"evil.example", "", "Bearer " + token, 403},
+		{"panel.eugen-bash.com.evil.example", "", "Bearer " + token, 403},
+		{"panel.example:9999", "", "Bearer " + token, 403},
+		{"panel.eugen-bash.com", "https://evil.example", "Bearer " + token, 403},
+		{"panel.eugen-bash.com", "", "Bearer wrong", 401},
+	} {
+		t.Run(tc.host+tc.origin+tc.auth[len(tc.auth)-1:], func(t *testing.T) {
+			req, err := http.NewRequest("POST", server.URL+"/mcp", strings.NewReader(`{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-11-25","capabilities":{},"clientInfo":{"name":"test","version":"1"}}}`))
+			if err != nil {
+				t.Fatal(err)
+			}
+			req.Host = tc.host
+			req.Header.Set("Origin", tc.origin)
+			req.Header.Set("Authorization", tc.auth)
+			req.Header.Set("Content-Type", "application/json")
+			req.Header.Set("Accept", "application/json, text/event-stream")
+			res, err := server.Client().Do(req)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer res.Body.Close()
+			body, err := io.ReadAll(res.Body)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if res.StatusCode != tc.want {
+				t.Fatalf("got %d want %d: %s", res.StatusCode, tc.want, body)
+			}
+			if tc.want == 200 && !strings.Contains(string(body), "serverInfo") {
+				t.Fatalf("initialize failed: %s", body)
+			}
+		})
 	}
 }
