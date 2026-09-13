@@ -14,8 +14,8 @@ export const metadata: Metadata = {
   appleWebApp: {
     capable: true,
     title: "Barn",
-    // Opaque status bar — avoids logo/IP colliding with the clock on iOS PWA.
-    statusBarStyle: "black",
+    // Match the light panel theme in standalone mode.
+    statusBarStyle: "default",
   },
   formatDetection: {
     telephone: false,
@@ -29,8 +29,8 @@ export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
   viewportFit: "cover",
-  themeColor: "#0f1419",
-  colorScheme: "dark",
+  themeColor: "#f6f7f9",
+  colorScheme: "light",
 };
 
 export default async function RootLayout({

@@ -50,6 +50,7 @@ export function BrandLogo({
           decoding="async"
         />
       )}
+      {isNav && <span className="brand-wordmark">Barn</span>}
       {showVersion && <AppVersion />}
       {showServerIP && <ServerIPBadge />}
     </span>
