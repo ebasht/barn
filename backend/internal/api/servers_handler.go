@@ -276,6 +276,8 @@ func (h *ServersHandler) StartAgentInstall(w http.ResponseWriter, r *http.Reques
 		return
 	}
 	req.Password = ""
+	req.PrivateKey = ""
+	req.PrivateKeyPassphrase = ""
 	writeJSON(w, http.StatusAccepted, out)
 }
 
@@ -296,6 +298,8 @@ func (h *ServersHandler) StartAgentUpdate(w http.ResponseWriter, r *http.Request
 		return
 	}
 	req.Password = ""
+	req.PrivateKey = ""
+	req.PrivateKeyPassphrase = ""
 	writeJSON(w, http.StatusAccepted, out)
 }
 

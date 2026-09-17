@@ -942,7 +942,7 @@ export const ru: Messages = {
     newServerSubtitle: "Установите полную панель Амбар или лёгкий агент мониторинга по SSH.",
     kindBarn: "Полный Амбар",
     kindBarnHint:
-      "Установка полной панели на VPS по SSH (root + пароль) и автоматическое сопряжение с Master.",
+      "Установка полной панели на VPS по SSH (root + пароль или ключ) и автоматическое сопряжение с Master.",
     kindPairExisting: "Подключить существующий Амбар",
     kindPairExistingHint:
       "На удалённом VPS панель уже установлена. Нужен код сопряжения из её настроек Амбара.",
@@ -950,8 +950,9 @@ export const ru: Messages = {
     kindAgentHint: "Лёгкий агент на VPS без панели Амбар.",
     sshFormHint: "Как при установке из консоли: SSH-доступ и публичный URL будущей панели.",
     sshFormHintBarn:
-      "SSH-доступ и публичный HTTPS URL будущей панели (DNS должен указывать на этот хост).",
-    sshFormHintAgent: "SSH-доступ к VPS. Будет установлен лёгкий агент мониторинга.",
+      "SSH-доступ (пароль или приватный ключ) и публичный HTTPS URL будущей панели (DNS должен указывать на этот хост).",
+    sshFormHintAgent:
+      "SSH-доступ к VPS (пароль или приватный ключ). Будет установлен лёгкий агент мониторинга.",
     baseUrl: "URL панели",
     panelUrl: "URL панели",
     panelUrlHint:
@@ -965,7 +966,16 @@ export const ru: Messages = {
     host: "Хост",
     port: "SSH-порт",
     sshUser: "SSH-пользователь",
+    sshAuthMethod: "Способ входа по SSH",
+    sshAuthPassword: "Пароль",
+    sshAuthPrivateKey: "Приватный ключ",
     sshPassword: "SSH-пароль",
+    sshPrivateKey: "Приватный ключ",
+    sshPrivateKeyPlaceholder: "-----BEGIN OPENSSH PRIVATE KEY-----",
+    sshPrivateKeyHint:
+      "Вставьте PEM/OpenSSH ключ целиком. Ключ хранится только в памяти на время установки и не пишется в БД.",
+    sshPrivateKeyPassphrase: "Пароль к ключу",
+    sshPrivateKeyPassphraseHint: "Только если ключ зашифрован.",
     billingOptional: "Биллинг (необязательно)",
     purpose: "Назначение",
     costMajor: "Стоимость (основные единицы)",

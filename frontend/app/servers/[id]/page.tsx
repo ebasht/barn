@@ -5,6 +5,12 @@ import { useParams, useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { ServerNodeBadges, ServerStatusBadge } from "@/components/ServerBadges";
+import {
+  SSHAuthFields,
+  sshAuthBody,
+  sshAuthReady,
+  type SSHAuthValues,
+} from "@/components/SSHAuthFields";
 import { api, ApiError } from "@/lib/api";
 import { formatBytes, formatPercent } from "@/lib/format";
 import { isBarnPanel } from "@/lib/servers-utils";
@@ -27,6 +33,13 @@ function formatUptime(seconds: number | undefined): string {
 }
 
 const TERMINAL_INSTALL = new Set(["completed", "failed", "cancelled"]);
+
+const emptySSHAuth = (): SSHAuthValues => ({
+  mode: "password",
+  password: "",
+  privateKey: "",
+  passphrase: "",
+});
 
 export default function ServerDetailPage() {
   const params = useParams();
@@ -54,7 +67,7 @@ export default function ServerDetailPage() {
   const [updateHost, setUpdateHost] = useState("");
   const [updatePort, setUpdatePort] = useState("22");
   const [updateUser, setUpdateUser] = useState("root");
-  const [updatePassword, setUpdatePassword] = useState("");
+  const [updateSSHAuth, setUpdateSSHAuth] = useState<SSHAuthValues>(emptySSHAuth);
   const [updateInstall, setUpdateInstall] = useState<ServerInstallation | null>(
     null,
   );
@@ -166,7 +179,7 @@ export default function ServerDetailPage() {
             host: updateHost.trim(),
             port: Number.parseInt(updatePort, 10) || 22,
             username: updateUser.trim() || "root",
-            password: updatePassword,
+            ...sshAuthBody(updateSSHAuth),
           }
         : undefined;
       await api.deleteServerNode(id, credentials);
@@ -200,18 +213,22 @@ export default function ServerDetailPage() {
   const submitAgentUpdate = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!id) return;
+    if (!sshAuthReady(updateSSHAuth)) {
+      setError(t("servers.updateAgentFailed"));
+      return;
+    }
     setBusy(true);
     setError(null);
     try {
       const body: Parameters<typeof api.startAgentUpdate>[1] = {
         host: updateHost.trim(),
-        password: updatePassword,
+        ...sshAuthBody(updateSSHAuth),
       };
       const portNum = parseInt(updatePort, 10);
       if (Number.isFinite(portNum) && portNum > 0) body.port = portNum;
       if (updateUser.trim()) body.username = updateUser.trim();
       const inst = await api.startAgentUpdate(id, body);
-      setUpdatePassword("");
+      setUpdateSSHAuth(emptySSHAuth());
       setUpdateInstall(inst);
       setUpdateLogs([]);
       startUpdatePolling(inst.id);
@@ -426,21 +443,13 @@ export default function ServerDetailPage() {
                     autoComplete="username"
                   />
                 </div>
-                <div className="field">
-                  <label className="label" htmlFor="update-password">
-                    {t("servers.sshPassword")}
-                  </label>
-                  <input
-                    id="update-password"
-                    className="input"
-                    type="password"
-                    value={updatePassword}
-                    onChange={(e) => setUpdatePassword(e.target.value)}
-                    required
-                    autoComplete="current-password"
-                  />
-                </div>
               </div>
+              <SSHAuthFields
+                idPrefix="update"
+                values={updateSSHAuth}
+                onChange={setUpdateSSHAuth}
+                disabled={busy}
+              />
               <div className="form-actions">
                 <button type="submit" className="btn" disabled={busy}>
                   {busy ? t("common.loading") : t("servers.updateAgentStart")}

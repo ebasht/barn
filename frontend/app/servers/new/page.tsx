@@ -2,6 +2,12 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
+import {
+  SSHAuthFields,
+  sshAuthBody,
+  sshAuthReady,
+  type SSHAuthValues,
+} from "@/components/SSHAuthFields";
 import { api, ApiError } from "@/lib/api";
 import { useI18n } from "@/lib/i18n/context";
 import type { ServerInstallation, ServerInstallationLog } from "@/lib/types";
@@ -10,6 +16,13 @@ type WizardKind = "choose" | "form" | "pair" | "install";
 type InstallKind = "barn" | "agent";
 
 const TERMINAL_INSTALL = new Set(["completed", "failed", "cancelled"]);
+
+const emptySSHAuth = (): SSHAuthValues => ({
+  mode: "password",
+  password: "",
+  privateKey: "",
+  passphrase: "",
+});
 
 export default function NewServerPage() {
   const { t } = useI18n();
@@ -22,7 +35,7 @@ export default function NewServerPage() {
   const [host, setHost] = useState("");
   const [port, setPort] = useState("22");
   const [username, setUsername] = useState("root");
-  const [password, setPassword] = useState("");
+  const [sshAuth, setSSHAuth] = useState<SSHAuthValues>(emptySSHAuth);
   const [panelUrl, setPanelUrl] = useState("");
   const [email, setEmail] = useState("");
 
@@ -34,7 +47,7 @@ export default function NewServerPage() {
   const [logs, setLogs] = useState<ServerInstallationLog[]>([]);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  const clearPassword = useCallback(() => setPassword(""), []);
+  const clearSSHAuth = useCallback(() => setSSHAuth(emptySSHAuth()), []);
 
   const stopPolling = useCallback(() => {
     if (pollRef.current) {
@@ -85,15 +98,18 @@ export default function NewServerPage() {
 
   const submitInstall = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!sshAuthReady(sshAuth)) {
+      setError(t("servers.installStartFailed"));
+      return;
+    }
     setBusy(true);
     setError(null);
-    const pass = password;
     try {
       const body: Parameters<typeof api.startAgentInstall>[0] = {
         kind,
         name: name.trim(),
         host: host.trim(),
-        password: pass,
+        ...sshAuthBody(sshAuth),
       };
       const portNum = parseInt(port, 10);
       if (Number.isFinite(portNum) && portNum > 0) body.port = portNum;
@@ -110,7 +126,7 @@ export default function NewServerPage() {
     } catch (err) {
       setError(err instanceof ApiError ? err.message : t("servers.installStartFailed"));
     } finally {
-      clearPassword();
+      clearSSHAuth();
       setBusy(false);
     }
   };
@@ -328,21 +344,14 @@ export default function NewServerPage() {
                 autoComplete="username"
               />
             </div>
-            <div className="field">
-              <label className="label" htmlFor="slave-pass">
-                {t("servers.sshPassword")}
-              </label>
-              <input
-                id="slave-pass"
-                className="input"
-                type="password"
-                autoComplete="new-password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                required
-              />
-            </div>
           </div>
+
+          <SSHAuthFields
+            idPrefix="slave"
+            values={sshAuth}
+            onChange={setSSHAuth}
+            disabled={busy}
+          />
 
           {kind === "barn" && (
             <>
@@ -387,7 +396,7 @@ export default function NewServerPage() {
               type="button"
               className="btn btn-secondary"
               onClick={() => {
-                clearPassword();
+                clearSSHAuth();
                 setStep("choose");
               }}
             >

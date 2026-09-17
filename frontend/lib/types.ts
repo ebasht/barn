@@ -753,7 +753,9 @@ export interface CreateAgentInstallRequest {
   host: string;
   port?: number;
   username?: string;
-  password: string;
+  password?: string;
+  private_key?: string;
+  private_key_passphrase?: string;
   panel_url?: string;
   email?: string;
   purpose?: string;
@@ -770,7 +772,9 @@ export interface UpdateAgentRequest {
   host: string;
   port?: number;
   username?: string;
-  password: string;
+  password?: string;
+  private_key?: string;
+  private_key_passphrase?: string;
 }
 
 export interface ServerInstallation {

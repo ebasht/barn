@@ -44,7 +44,7 @@ type Service struct {
 	agentDir   string // path to embedded agent binaries inside API image
 
 	installMu sync.Mutex
-	installs  map[uuid.UUID]*installSecret // in-memory SSH passwords
+	installs  map[uuid.UUID]*installSecret // in-memory SSH credentials
 }
 
 // DBExec runs schema-ensure statements (subset of pgxpool.Pool).
@@ -53,7 +53,7 @@ type DBExec interface {
 }
 
 type installSecret struct {
-	password  string
+	auth      SSHAuth
 	expiresAt time.Time
 	ctx       context.Context
 	cancel    context.CancelFunc

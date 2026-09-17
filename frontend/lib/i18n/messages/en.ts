@@ -939,7 +939,7 @@ export const en = {
     newServerSubtitle: "Install a full Barn panel or a lightweight monitoring agent over SSH.",
     kindBarn: "Full Barn",
     kindBarnHint:
-      "Install the full panel on a VPS via SSH (root + password), then pair it to this Master.",
+      "Install the full panel on a VPS via SSH (root + password or key), then pair it to this Master.",
     kindPairExisting: "Connect existing Barn",
     kindPairExistingHint:
       "The remote panel already runs Barn. Use a pairing code from its Barn settings.",
@@ -947,8 +947,9 @@ export const en = {
     kindAgentHint: "Install the lightweight agent on a VPS without a Barn panel.",
     sshFormHint: "Same idea as console install: SSH access plus the public URL of the future panel.",
     sshFormHintBarn:
-      "SSH access plus the public HTTPS URL of the future panel (DNS must point to this host).",
-    sshFormHintAgent: "SSH access to the VPS. A lightweight monitoring agent will be installed.",
+      "SSH access (password or private key) plus the public HTTPS URL of the future panel (DNS must point to this host).",
+    sshFormHintAgent:
+      "SSH access to the VPS (password or private key). A lightweight monitoring agent will be installed.",
     baseUrl: "Panel URL",
     panelUrl: "Panel URL",
     panelUrlHint: "Public HTTPS URL where this Barn will open (DNS A/AAAA must point to the VPS).",
@@ -961,7 +962,16 @@ export const en = {
     host: "Host",
     port: "SSH port",
     sshUser: "SSH username",
+    sshAuthMethod: "SSH auth method",
+    sshAuthPassword: "Password",
+    sshAuthPrivateKey: "Private key",
     sshPassword: "SSH password",
+    sshPrivateKey: "Private key",
+    sshPrivateKeyPlaceholder: "-----BEGIN OPENSSH PRIVATE KEY-----",
+    sshPrivateKeyHint:
+      "Paste the full PEM/OpenSSH key. It stays in memory for the install only and is never stored in the database.",
+    sshPrivateKeyPassphrase: "Key passphrase",
+    sshPrivateKeyPassphraseHint: "Only if the key is encrypted.",
     billingOptional: "Billing (optional)",
     purpose: "Purpose",
     costMajor: "Cost (major units)",

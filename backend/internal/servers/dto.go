@@ -221,40 +221,46 @@ type AgentRegisterResponse struct {
 }
 
 type CreateAgentInstallRequest struct {
-	Kind         string `json:"kind"` // agent | barn | dockpilot (legacy)
-	Name         string `json:"name"`
-	Host         string `json:"host"`
-	Port         int    `json:"port"`
-	Username     string `json:"username"`
-	Password     string `json:"password"`
-	PanelURL     string `json:"panel_url"`
-	Email        string `json:"email"`
-	Purpose      string `json:"purpose"`
-	CostMinor    int64  `json:"cost_minor"`
-	Currency     string `json:"currency"`
-	Period       string `json:"period"`
-	NextDueDate  string `json:"next_due_date"`
-	AutoRenew    bool   `json:"auto_renew"`
-	ProviderName string `json:"provider_name"`
-	ProviderURL  string `json:"provider_url"`
-	Comment      string `json:"comment"`
+	Kind                 string `json:"kind"` // agent | barn | dockpilot (legacy)
+	Name                 string `json:"name"`
+	Host                 string `json:"host"`
+	Port                 int    `json:"port"`
+	Username             string `json:"username"`
+	Password             string `json:"password"`
+	PrivateKey           string `json:"private_key"`
+	PrivateKeyPassphrase string `json:"private_key_passphrase"`
+	PanelURL             string `json:"panel_url"`
+	Email                string `json:"email"`
+	Purpose              string `json:"purpose"`
+	CostMinor            int64  `json:"cost_minor"`
+	Currency             string `json:"currency"`
+	Period               string `json:"period"`
+	NextDueDate          string `json:"next_due_date"`
+	AutoRenew            bool   `json:"auto_renew"`
+	ProviderName         string `json:"provider_name"`
+	ProviderURL          string `json:"provider_url"`
+	Comment              string `json:"comment"`
 }
 
 // UpdateAgentRequest redeploys barn-agent binary over SSH without re-registration.
 type UpdateAgentRequest struct {
-	Host     string `json:"host"`
-	Port     int    `json:"port"`
-	Username string `json:"username"`
-	Password string `json:"password"`
+	Host                 string `json:"host"`
+	Port                 int    `json:"port"`
+	Username             string `json:"username"`
+	Password             string `json:"password"`
+	PrivateKey           string `json:"private_key"`
+	PrivateKeyPassphrase string `json:"private_key_passphrase"`
 }
 
 // DeleteNodeRequest contains SSH credentials used to uninstall an agent before
 // its node record and master credentials are removed.
 type DeleteNodeRequest struct {
-	Host     string `json:"host"`
-	Port     int    `json:"port"`
-	Username string `json:"username"`
-	Password string `json:"password"`
+	Host                 string `json:"host"`
+	Port                 int    `json:"port"`
+	Username             string `json:"username"`
+	Password             string `json:"password"`
+	PrivateKey           string `json:"private_key"`
+	PrivateKeyPassphrase string `json:"private_key_passphrase"`
 }
 
 type InstallationResponse struct {

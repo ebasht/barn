@@ -60,17 +60,29 @@ func (s *Service) StartAgentInstall(ctx context.Context, req CreateAgentInstallR
 	}
 	pass := req.Password
 	req.Password = ""
+	key := req.PrivateKey
+	req.PrivateKey = ""
+	passphrase := req.PrivateKeyPassphrase
+	req.PrivateKeyPassphrase = ""
+	auth := takeSSHAuth(pass, key, passphrase)
 	name := strings.TrimSpace(req.Name)
 	panelURL := strings.TrimRight(strings.TrimSpace(req.PanelURL), "/")
 	email := strings.TrimSpace(req.Email)
-	if host == "" || pass == "" || name == "" {
+	if host == "" || name == "" || auth.empty() {
+		auth.clear()
 		return InstallationResponse{}, ErrInvalidInput
+	}
+	if _, err := sshAuthMethods(auth); err != nil {
+		auth.clear()
+		return InstallationResponse{}, err
 	}
 	if kind == "barn" {
 		if panelURL == "" {
+			auth.clear()
 			return InstallationResponse{}, fmt.Errorf("%w: panel_url is required", ErrInvalidInput)
 		}
 		if err := validatePublicURL(panelURL); err != nil {
+			auth.clear()
 			return InstallationResponse{}, err
 		}
 		if email == "" {
@@ -80,6 +92,7 @@ func (s *Service) StartAgentInstall(ctx context.Context, req CreateAgentInstallR
 			}
 		}
 		if email == "" || !strings.Contains(email, "@") {
+			auth.clear()
 			return InstallationResponse{}, fmt.Errorf("%w: email is required for Barn install", ErrInvalidInput)
 		}
 	}
@@ -102,12 +115,13 @@ func (s *Service) StartAgentInstall(ctx context.Context, req CreateAgentInstallR
 		DisplayName:     name,
 	})
 	if err != nil {
+		auth.clear()
 		return InstallationResponse{}, mapErr(err)
 	}
 	s.installMu.Lock()
 	jobCtx, cancel := context.WithCancel(context.Background())
 	s.installs[inst.ID] = &installSecret{
-		password:  pass,
+		auth:      auth,
 		expiresAt: time.Now().Add(ttl),
 		ctx:       jobCtx,
 		cancel:    cancel,
@@ -220,7 +234,6 @@ func (s *Service) runInstall(parent context.Context, id uuid.UUID) {
 		s.failInstall(ctx, id, "credentials_missing", "нет SSH credentials в памяти")
 		return
 	}
-	password := sec.password
 
 	set := func(status, step string) {
 		_, _ = s.q.UpdateServersInstallation(ctx, db.UpdateServersInstallationParams{
@@ -231,8 +244,13 @@ func (s *Service) runInstall(parent context.Context, id uuid.UUID) {
 	}
 
 	set("connecting", "Подключение к серверу")
-	client, err := sshDial(inst.Host, int(inst.Port), inst.Username, password, inst.SshFingerprint)
-	clearString(&password)
+	methods, err := sshAuthMethods(sec.auth)
+	sec.auth.clear()
+	if err != nil {
+		s.failInstall(ctx, id, "ssh_auth_invalid", "неверные SSH credentials: "+err.Error())
+		return
+	}
+	client, err := sshDial(inst.Host, int(inst.Port), inst.Username, methods, inst.SshFingerprint)
 	if err != nil {
 		s.failInstall(ctx, id, "ssh_connect_failed", "не удалось подключиться по SSH: "+err.Error())
 		return
@@ -281,8 +299,18 @@ func (s *Service) StartAgentUpdate(ctx context.Context, nodeID uuid.UUID, req Up
 	}
 	pass := req.Password
 	req.Password = ""
-	if host == "" || pass == "" {
+	key := req.PrivateKey
+	req.PrivateKey = ""
+	passphrase := req.PrivateKeyPassphrase
+	req.PrivateKeyPassphrase = ""
+	auth := takeSSHAuth(pass, key, passphrase)
+	if host == "" || auth.empty() {
+		auth.clear()
 		return InstallationResponse{}, ErrInvalidInput
+	}
+	if _, err := sshAuthMethods(auth); err != nil {
+		auth.clear()
+		return InstallationResponse{}, err
 	}
 	inst, err := s.q.CreateServersInstallation(ctx, db.CreateServersInstallationParams{
 		NodeID:          pgUUID(node.ID),
@@ -298,12 +326,13 @@ func (s *Service) StartAgentUpdate(ctx context.Context, nodeID uuid.UUID, req Up
 		DisplayName:     node.Name,
 	})
 	if err != nil {
+		auth.clear()
 		return InstallationResponse{}, mapErr(err)
 	}
 	s.installMu.Lock()
 	jobCtx, cancel := context.WithCancel(context.Background())
 	s.installs[inst.ID] = &installSecret{
-		password:  pass,
+		auth:      auth,
 		expiresAt: time.Now().Add(10 * time.Minute),
 		ctx:       jobCtx,
 		cancel:    cancel,
@@ -777,7 +806,7 @@ func (s *Service) clearInstallSecret(id uuid.UUID) {
 	s.installMu.Lock()
 	defer s.installMu.Unlock()
 	if sec, ok := s.installs[id]; ok {
-		clearString(&sec.password)
+		sec.auth.clear()
 		delete(s.installs, id)
 	}
 }
@@ -879,22 +908,6 @@ func detectPrettyOS(osRelease string) string {
 	return "Linux"
 }
 
-func sshDial(host string, port int, user, password, wantFP string) (*ssh.Client, error) {
-	config := &ssh.ClientConfig{
-		User: user,
-		Auth: []ssh.AuthMethod{ssh.Password(password)},
-		HostKeyCallback: func(_ string, _ net.Addr, key ssh.PublicKey) error {
-			fp := ssh.FingerprintSHA256(key)
-			if wantFP != "" && fp != wantFP {
-				return fmt.Errorf("host key mismatch")
-			}
-			return nil
-		},
-		Timeout: 15 * time.Second,
-	}
-	return ssh.Dial("tcp", net.JoinHostPort(host, strconv.Itoa(port)), config)
-}
-
 func sshRun(client *ssh.Client, cmd string) (string, error) {
 	session, err := client.NewSession()
 	if err != nil {
@@ -991,19 +1004,26 @@ func (s *Service) uninstallAgent(ctx context.Context, req DeleteNodeRequest) err
 	if port <= 0 {
 		port = 22
 	}
-	password := req.Password
+	auth := takeSSHAuth(req.Password, req.PrivateKey, req.PrivateKeyPassphrase)
 	req.Password = ""
-	if host == "" || password == "" {
-		clearString(&password)
+	req.PrivateKey = ""
+	req.PrivateKeyPassphrase = ""
+	if host == "" || auth.empty() {
+		auth.clear()
 		return fmt.Errorf("%w: SSH credentials are required to uninstall agent", ErrInvalidInput)
+	}
+	methods, err := sshAuthMethods(auth)
+	if err != nil {
+		auth.clear()
+		return err
 	}
 	known, err := s.q.GetKnownHost(ctx, db.GetKnownHostParams{Host: host, Port: int32(port)})
 	if err != nil || strings.TrimSpace(known.Fingerprint) == "" {
-		clearString(&password)
+		auth.clear()
 		return fmt.Errorf("%w: SSH host key is not trusted; reinstall or update the agent first", ErrInvalidInput)
 	}
-	client, err := sshDial(host, port, user, password, known.Fingerprint)
-	clearString(&password)
+	client, err := sshDial(host, port, user, methods, known.Fingerprint)
+	auth.clear()
 	if err != nil {
 		return fmt.Errorf("uninstall agent over SSH: %w", err)
 	}
