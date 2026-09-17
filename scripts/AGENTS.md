@@ -14,7 +14,9 @@
 - Сборка: `scripts/docker-build.sh`, `docker-export.sh`, `make-release.sh`;
   `docker-compose.build.yml`, Dockerfiles в backend/frontend.
 - `.github/workflows/release.yml`: push тега `v*` собирает и публикует релиз.
-  Сохраняются assets Barn и legacy DockPilot.
+  Assets: `barn-*.tar.gz` и legacy `dock-pilot-*.tar.gz` (образы внутри бандла).
+  Отдельный `barn-images.tar.gz` на GitHub Releases не выкладываем — API uploads
+  часто отвечает 500 «Error creating asset temp dir» на больших файлах.
 
 ## Инварианты и проверка
 
