@@ -489,6 +489,10 @@ export const en = {
     proxy: "HTTP proxy for Telegram API",
     proxyHint:
       "Required if the VPS cannot reach api.telegram.org (timeout). Use the same SOCKS as host-network bots, e.g. socks5://127.0.0.1:1080.",
+    digestMode: "Report format",
+    digestDetailed: "Detailed digest",
+    digestCompact: "Short status",
+    digestModeHint: "Short: “All OK” when healthy; otherwise only site, database, server and payment issues. Unknown statuses are also included. Applies to test messages too.",
     dailyDigest: "Daily report on all services",
     digestHour: "Report time",
     digestTimezone: "Timezone",

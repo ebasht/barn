@@ -70,6 +70,7 @@ type NotificationSetting struct {
 	Enabled                   bool               `json:"enabled"`
 	TelegramChatID            string             `json:"telegram_chat_id"`
 	TelegramHttpProxy         string             `json:"telegram_http_proxy"`
+	DailyDigestMode           string             `json:"daily_digest_mode"`
 	DailyDigestEnabled        bool               `json:"daily_digest_enabled"`
 	DailyDigestHour           int32              `json:"daily_digest_hour"`
 	DailyDigestMinute         int32              `json:"daily_digest_minute"`
@@ -79,16 +80,6 @@ type NotificationSetting struct {
 	LastDailySentAt           pgtype.Timestamptz `json:"last_daily_sent_at"`
 	LastOverallBySite         []byte             `json:"last_overall_by_site"`
 	UpdatedAt                 time.Time          `json:"updated_at"`
-}
-
-type PdbDatabaseActivity struct {
-	InstanceID   uuid.UUID          `json:"instance_id"`
-	DatabaseName string             `json:"database_name"`
-	Inserts      int64              `json:"inserts"`
-	Updates      int64              `json:"updates"`
-	Deletes      int64              `json:"deletes"`
-	LastDmlAt    pgtype.Timestamptz `json:"last_dml_at"`
-	CheckedAt    time.Time          `json:"checked_at"`
 }
 
 type PanelBackupSetting struct {
@@ -141,6 +132,16 @@ type PdbDatabase struct {
 	Name       string    `json:"name"`
 	OwnerRole  string    `json:"owner_role"`
 	CreatedAt  time.Time `json:"created_at"`
+}
+
+type PdbDatabaseActivity struct {
+	InstanceID   uuid.UUID          `json:"instance_id"`
+	DatabaseName string             `json:"database_name"`
+	Inserts      int64              `json:"inserts"`
+	Updates      int64              `json:"updates"`
+	Deletes      int64              `json:"deletes"`
+	LastDmlAt    pgtype.Timestamptz `json:"last_dml_at"`
+	CheckedAt    time.Time          `json:"checked_at"`
 }
 
 type PdbInstance struct {

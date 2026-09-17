@@ -169,6 +169,7 @@ export interface NotificationSettings {
   telegram_chat_id: string;
   telegram_http_proxy: string;
   telegram_bot_token_set: boolean;
+  daily_digest_mode: "detailed" | "compact";
   daily_digest_enabled: boolean;
   daily_digest_hour: number;
   daily_digest_minute: number;
@@ -183,6 +184,7 @@ export interface UpdateNotificationSettings {
   telegram_http_proxy: string;
   telegram_bot_token?: string;
   clear_telegram_bot_token?: boolean;
+  daily_digest_mode: "detailed" | "compact";
   daily_digest_enabled: boolean;
   daily_digest_hour: number;
   daily_digest_minute: number;

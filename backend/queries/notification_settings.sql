@@ -17,6 +17,7 @@ UPDATE notification_settings SET
     daily_digest_minute = $7,
     daily_digest_timezone = $8,
     alert_on_incident_enabled = $9,
+    daily_digest_mode = $10,
     updated_at = now()
 WHERE id = 1
 RETURNING *;

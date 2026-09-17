@@ -112,6 +112,9 @@ func (s *Service) UpdateSettings(ctx context.Context, req UpdateSettingsRequest)
 		return SettingsResponse{}, err
 	}
 
+	if req.DailyDigestMode == "" {
+		req.DailyDigestMode = current.DailyDigestMode
+	}
 	if err := validateUpdate(req, current); err != nil {
 		return SettingsResponse{}, err
 	}
@@ -135,6 +138,7 @@ func (s *Service) UpdateSettings(ctx context.Context, req UpdateSettingsRequest)
 		Enabled:                req.Enabled,
 		TelegramChatID:         strings.TrimSpace(req.TelegramChatID),
 		TelegramHttpProxy:      strings.TrimSpace(req.TelegramHTTPProxy),
+		DailyDigestMode:        req.DailyDigestMode,
 		DailyDigestEnabled:     req.DailyDigestEnabled,
 		DailyDigestHour:        int32(req.DailyDigestHour),
 		DailyDigestMinute:      int32(req.DailyDigestMinute),
@@ -161,8 +165,10 @@ func (s *Service) SetTelegramProxy(ctx context.Context, proxyURL string) (Settin
 		Enabled:                row.Enabled,
 		TelegramChatID:         row.TelegramChatID,
 		TelegramHttpProxy:      strings.TrimSpace(proxyURL),
+		DailyDigestMode:        row.DailyDigestMode,
 		DailyDigestEnabled:     row.DailyDigestEnabled,
 		DailyDigestHour:        row.DailyDigestHour,
+		DailyDigestMinute:      row.DailyDigestMinute,
 		DailyDigestTimezone:    row.DailyDigestTimezone,
 		AlertOnIncidentEnabled: row.AlertOnIncidentEnabled,
 	})
@@ -185,7 +191,7 @@ func (s *Service) SendTest(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	text := formatDailyDigest(s.panelName(ctx, settings.PanelName), items, names, servers, time.Now().UTC(), settings.DailyDigestTimezone)
+	text := formatDigest(settings.DailyDigestMode, s.panelName(ctx, settings.PanelName), items, names, servers, time.Now().UTC(), settings.DailyDigestTimezone)
 	if err := s.telegram.SendMessage(ctx, token, settings.TelegramChatID, text, settings.TelegramHttpProxy); err != nil {
 		return fmt.Errorf("telegram: %w", err)
 	}
@@ -241,7 +247,7 @@ func (s *Service) RunCheck(ctx context.Context) error {
 		if err != nil {
 			return err
 		}
-		msg := formatDailyDigest(s.panelName(ctx, settings.PanelName), digestItems, names, servers, now, settings.DailyDigestTimezone)
+		msg := formatDigest(settings.DailyDigestMode, s.panelName(ctx, settings.PanelName), digestItems, names, servers, now, settings.DailyDigestTimezone)
 		if err := s.telegram.SendMessage(ctx, token, settings.TelegramChatID, msg, settings.TelegramHttpProxy); err != nil {
 			return fmt.Errorf("daily digest: %w", err)
 		}
@@ -430,6 +436,9 @@ func mapDBErr(err error) error {
 }
 
 func validateUpdate(req UpdateSettingsRequest, current db.NotificationSetting) error {
+	if req.DailyDigestMode != "" && req.DailyDigestMode != "detailed" && req.DailyDigestMode != "compact" {
+		return fmt.Errorf("%w: daily_digest_mode must be detailed or compact", ErrInvalidInput)
+	}
 	if err := validateProxyURL(req.TelegramHTTPProxy); err != nil {
 		return err
 	}
@@ -469,6 +478,7 @@ func (s *Service) toSettingsResponse(ctx context.Context, row db.NotificationSet
 		TelegramChatID:         row.TelegramChatID,
 		TelegramHTTPProxy:      row.TelegramHttpProxy,
 		TelegramBotTokenSet:    len(row.EncryptedTelegramBotToken) > 0,
+		DailyDigestMode:        row.DailyDigestMode,
 		DailyDigestEnabled:     row.DailyDigestEnabled,
 		DailyDigestHour:        int(row.DailyDigestHour),
 		DailyDigestMinute:      int(row.DailyDigestMinute),

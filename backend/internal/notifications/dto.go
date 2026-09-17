@@ -6,6 +6,7 @@ type SettingsResponse struct {
 	TelegramChatID         string `json:"telegram_chat_id"`
 	TelegramHTTPProxy      string `json:"telegram_http_proxy"`
 	TelegramBotTokenSet    bool   `json:"telegram_bot_token_set"`
+	DailyDigestMode        string `json:"daily_digest_mode"`
 	DailyDigestEnabled     bool   `json:"daily_digest_enabled"`
 	DailyDigestHour        int    `json:"daily_digest_hour"`
 	DailyDigestMinute      int    `json:"daily_digest_minute"`
@@ -20,6 +21,7 @@ type UpdateSettingsRequest struct {
 	TelegramHTTPProxy      string `json:"telegram_http_proxy"`
 	TelegramBotToken       string `json:"telegram_bot_token,omitempty"`
 	ClearTelegramBotToken  bool   `json:"clear_telegram_bot_token,omitempty"`
+	DailyDigestMode        string `json:"daily_digest_mode"`
 	DailyDigestEnabled     bool   `json:"daily_digest_enabled"`
 	DailyDigestHour        int    `json:"daily_digest_hour"`
 	DailyDigestMinute      int    `json:"daily_digest_minute"`

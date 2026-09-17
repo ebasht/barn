@@ -78,6 +78,7 @@ CREATE TABLE notification_settings (
     enabled BOOLEAN NOT NULL DEFAULT false,
     telegram_chat_id TEXT NOT NULL DEFAULT '',
     telegram_http_proxy TEXT NOT NULL DEFAULT '',
+    daily_digest_mode TEXT NOT NULL DEFAULT 'detailed' CHECK (daily_digest_mode IN ('detailed', 'compact')),
     daily_digest_enabled BOOLEAN NOT NULL DEFAULT false,
     daily_digest_hour INT NOT NULL DEFAULT 9 CHECK (daily_digest_hour >= 0 AND daily_digest_hour <= 23),
     daily_digest_minute INT NOT NULL DEFAULT 0 CHECK (daily_digest_minute >= 0 AND daily_digest_minute <= 55 AND daily_digest_minute % 5 = 0),

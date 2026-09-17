@@ -23,6 +23,7 @@ export default function NotificationsPage() {
   const [telegramBotToken, setTelegramBotToken] = useState("");
   const [tokenSet, setTokenSet] = useState(false);
   const [clearToken, setClearToken] = useState(false);
+  const [dailyDigestMode, setDailyDigestMode] = useState<"detailed" | "compact">("detailed");
   const [dailyDigestEnabled, setDailyDigestEnabled] = useState(false);
   const [dailyDigestHour, setDailyDigestHour] = useState(9);
   const [dailyDigestMinute, setDailyDigestMinute] = useState(0);
@@ -44,6 +45,7 @@ export default function NotificationsPage() {
       setTelegramChatID(s.telegram_chat_id);
       setTelegramHTTPProxy(s.telegram_http_proxy ?? "");
       setTokenSet(s.telegram_bot_token_set);
+      setDailyDigestMode(s.daily_digest_mode ?? "detailed");
       setDailyDigestEnabled(s.daily_digest_enabled);
       setDailyDigestHour(s.daily_digest_hour);
       setDailyDigestMinute(s.daily_digest_minute);
@@ -66,6 +68,7 @@ export default function NotificationsPage() {
     enabled,
     telegram_chat_id: telegramChatID.trim(),
     telegram_http_proxy: telegramHTTPProxy.trim(),
+    daily_digest_mode: dailyDigestMode,
     daily_digest_enabled: dailyDigestEnabled,
     daily_digest_hour: dailyDigestHour,
     daily_digest_minute: dailyDigestMinute,
@@ -111,6 +114,7 @@ export default function NotificationsPage() {
           telegramChatID.trim() !== settings.telegram_chat_id ||
           telegramHTTPProxy.trim() !== (settings.telegram_http_proxy ?? "") ||
           enabled !== settings.enabled ||
+          dailyDigestMode !== (settings.daily_digest_mode ?? "detailed") ||
           dailyDigestEnabled !== settings.daily_digest_enabled ||
           dailyDigestHour !== settings.daily_digest_hour ||
           dailyDigestMinute !== settings.daily_digest_minute ||
@@ -249,6 +253,25 @@ export default function NotificationsPage() {
             />
             <span>{t("notifications.dailyDigest")}</span>
           </label>
+        </div>
+
+        <div className="field">
+          <label className="label" htmlFor="digest-mode">
+            {t("notifications.digestMode")}
+          </label>
+          <select
+            id="digest-mode"
+            className="input"
+            value={dailyDigestMode}
+            onChange={(e) => setDailyDigestMode(e.target.value as "detailed" | "compact")}
+            aria-describedby="digest-mode-hint"
+          >
+            <option value="detailed">{t("notifications.digestDetailed")}</option>
+            <option value="compact">{t("notifications.digestCompact")}</option>
+          </select>
+          <p id="digest-mode-hint" style={{ color: "var(--muted)", fontSize: "0.8125rem", margin: "0.35rem 0 0" }}>
+            {t("notifications.digestModeHint")}
+          </p>
         </div>
 
         <div className="field">

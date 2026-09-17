@@ -25,7 +25,7 @@ func (q *Queries) ClearNotificationToken(ctx context.Context) error {
 const ensureNotificationSettings = `-- name: EnsureNotificationSettings :one
 INSERT INTO notification_settings (id) VALUES (1)
 ON CONFLICT (id) DO UPDATE SET updated_at = notification_settings.updated_at
-RETURNING id, panel_name, enabled, telegram_chat_id, telegram_http_proxy, daily_digest_enabled, daily_digest_hour, daily_digest_minute, daily_digest_timezone, alert_on_incident_enabled, encrypted_telegram_bot_token, last_daily_sent_at, last_overall_by_site, updated_at
+RETURNING id, panel_name, enabled, telegram_chat_id, telegram_http_proxy, daily_digest_mode, daily_digest_enabled, daily_digest_hour, daily_digest_minute, daily_digest_timezone, alert_on_incident_enabled, encrypted_telegram_bot_token, last_daily_sent_at, last_overall_by_site, updated_at
 `
 
 func (q *Queries) EnsureNotificationSettings(ctx context.Context) (NotificationSetting, error) {
@@ -37,6 +37,7 @@ func (q *Queries) EnsureNotificationSettings(ctx context.Context) (NotificationS
 		&i.Enabled,
 		&i.TelegramChatID,
 		&i.TelegramHttpProxy,
+		&i.DailyDigestMode,
 		&i.DailyDigestEnabled,
 		&i.DailyDigestHour,
 		&i.DailyDigestMinute,
@@ -51,7 +52,7 @@ func (q *Queries) EnsureNotificationSettings(ctx context.Context) (NotificationS
 }
 
 const getNotificationSettings = `-- name: GetNotificationSettings :one
-SELECT id, panel_name, enabled, telegram_chat_id, telegram_http_proxy, daily_digest_enabled, daily_digest_hour, daily_digest_minute, daily_digest_timezone, alert_on_incident_enabled, encrypted_telegram_bot_token, last_daily_sent_at, last_overall_by_site, updated_at FROM notification_settings WHERE id = 1
+SELECT id, panel_name, enabled, telegram_chat_id, telegram_http_proxy, daily_digest_mode, daily_digest_enabled, daily_digest_hour, daily_digest_minute, daily_digest_timezone, alert_on_incident_enabled, encrypted_telegram_bot_token, last_daily_sent_at, last_overall_by_site, updated_at FROM notification_settings WHERE id = 1
 `
 
 func (q *Queries) GetNotificationSettings(ctx context.Context) (NotificationSetting, error) {
@@ -63,6 +64,7 @@ func (q *Queries) GetNotificationSettings(ctx context.Context) (NotificationSett
 		&i.Enabled,
 		&i.TelegramChatID,
 		&i.TelegramHttpProxy,
+		&i.DailyDigestMode,
 		&i.DailyDigestEnabled,
 		&i.DailyDigestHour,
 		&i.DailyDigestMinute,
@@ -109,9 +111,10 @@ UPDATE notification_settings SET
     daily_digest_minute = $7,
     daily_digest_timezone = $8,
     alert_on_incident_enabled = $9,
+    daily_digest_mode = $10,
     updated_at = now()
 WHERE id = 1
-RETURNING id, panel_name, enabled, telegram_chat_id, telegram_http_proxy, daily_digest_enabled, daily_digest_hour, daily_digest_minute, daily_digest_timezone, alert_on_incident_enabled, encrypted_telegram_bot_token, last_daily_sent_at, last_overall_by_site, updated_at
+RETURNING id, panel_name, enabled, telegram_chat_id, telegram_http_proxy, daily_digest_mode, daily_digest_enabled, daily_digest_hour, daily_digest_minute, daily_digest_timezone, alert_on_incident_enabled, encrypted_telegram_bot_token, last_daily_sent_at, last_overall_by_site, updated_at
 `
 
 type UpdateNotificationSettingsParams struct {
@@ -124,6 +127,7 @@ type UpdateNotificationSettingsParams struct {
 	DailyDigestMinute      int32  `json:"daily_digest_minute"`
 	DailyDigestTimezone    string `json:"daily_digest_timezone"`
 	AlertOnIncidentEnabled bool   `json:"alert_on_incident_enabled"`
+	DailyDigestMode        string `json:"daily_digest_mode"`
 }
 
 func (q *Queries) UpdateNotificationSettings(ctx context.Context, arg UpdateNotificationSettingsParams) (NotificationSetting, error) {
@@ -137,6 +141,7 @@ func (q *Queries) UpdateNotificationSettings(ctx context.Context, arg UpdateNoti
 		arg.DailyDigestMinute,
 		arg.DailyDigestTimezone,
 		arg.AlertOnIncidentEnabled,
+		arg.DailyDigestMode,
 	)
 	var i NotificationSetting
 	err := row.Scan(
@@ -145,6 +150,7 @@ func (q *Queries) UpdateNotificationSettings(ctx context.Context, arg UpdateNoti
 		&i.Enabled,
 		&i.TelegramChatID,
 		&i.TelegramHttpProxy,
+		&i.DailyDigestMode,
 		&i.DailyDigestEnabled,
 		&i.DailyDigestHour,
 		&i.DailyDigestMinute,
