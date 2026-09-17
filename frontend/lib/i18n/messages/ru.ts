@@ -976,6 +976,12 @@ export const ru: Messages = {
       "Вставьте PEM/OpenSSH ключ целиком. Ключ хранится только в памяти на время установки и не пишется в БД.",
     sshPrivateKeyPassphrase: "Пароль к ключу",
     sshPrivateKeyPassphraseHint: "Только если ключ зашифрован.",
+    sshSudoPassword: "Пароль пользователя (sudo)",
+    sshSudoPasswordRequired: "Пароль пользователя (обязательно для sudo)",
+    sshSudoPasswordHint:
+      "Нужен, если SSH-пользователь не root: этим паролем вызывается sudo для systemctl и установки в /opt.",
+    sshSudoPasswordRequiredHint:
+      "Пользователь не root — укажите пароль этого пользователя для sudo (иначе systemctl и запись в /opt не сработают).",
     billingOptional: "Биллинг (необязательно)",
     purpose: "Назначение",
     costMajor: "Стоимость (основные единицы)",
@@ -1000,7 +1006,12 @@ export const ru: Messages = {
     removeServer: "Удалить сервер",
     removeServerConfirm: "Удалить «{name}» из Амбара?",
     removeAgentConfirm:
-      "Удалить агент с сервера «{name}» и отвязать его от master? Будут использованы SSH-данные из формы обновления агента.",
+      "Удалить агент с сервера «{name}» и отвязать его от master. Нужен SSH-доступ, чтобы снять сервис на VPS.",
+    removeAgentSSHHint: "SSH для удаления агента на сервере",
+    removeAgentSkipUninstall: "Только убрать из панели (не удалять агент на VPS)",
+    removeAgentSkipUninstallHint:
+      "Если сервер недоступен или SSH неизвестен — отметьте, чтобы отвязать агент только здесь.",
+    removeAgentNeedSSH: "Укажите SSH-данные или отметьте «только из панели».",
     nodeInfo: "Информация о сервере",
     nodeUid: "Node UID",
     hostname: "Hostname",

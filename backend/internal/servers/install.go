@@ -244,28 +244,37 @@ func (s *Service) runInstall(parent context.Context, id uuid.UUID) {
 	}
 
 	set("connecting", "Подключение к серверу")
+	sudoPassword := sec.auth.Password
 	methods, err := sshAuthMethods(sec.auth)
 	sec.auth.clear()
 	if err != nil {
+		clearString(&sudoPassword)
 		s.failInstall(ctx, id, "ssh_auth_invalid", "неверные SSH credentials: "+err.Error())
 		return
 	}
 	client, err := sshDial(inst.Host, int(inst.Port), inst.Username, methods, inst.SshFingerprint)
 	if err != nil {
+		clearString(&sudoPassword)
 		s.failInstall(ctx, id, "ssh_connect_failed", "не удалось подключиться по SSH: "+err.Error())
 		return
 	}
 	defer client.Close()
+	defer clearString(&sudoPassword)
+
+	if err := ensureRootOrSudo(client, sudoPassword); err != nil {
+		s.failInstall(ctx, id, "sudo_required", err.Error())
+		return
+	}
 
 	if NormalizeInstallKind(inst.InstallKind) == "barn" {
-		s.runBarnInstall(ctx, client, id, inst, set)
+		s.runBarnInstall(ctx, client, id, inst, set, sudoPassword)
 		return
 	}
 	if inst.InstallKind == "agent_update" {
-		s.runAgentUpdate(ctx, client, id, inst, set)
+		s.runAgentUpdate(ctx, client, id, inst, set, sudoPassword)
 		return
 	}
-	s.runAgentInstall(ctx, client, id, inst, set)
+	s.runAgentInstall(ctx, client, id, inst, set, sudoPassword)
 }
 
 // StartAgentUpdate redeploys the agent binary on an existing agent node over SSH.
@@ -343,7 +352,7 @@ func (s *Service) StartAgentUpdate(ctx context.Context, nodeID uuid.UUID, req Up
 	return s.installationResponse(inst), nil
 }
 
-func (s *Service) runAgentUpdate(ctx context.Context, client *ssh.Client, id uuid.UUID, inst db.ServersInstallation, set func(status, step string)) {
+func (s *Service) runAgentUpdate(ctx context.Context, client *ssh.Client, id uuid.UUID, inst db.ServersInstallation, set func(status, step string), sudoPassword string) {
 	set("detecting_system", "Определение системы")
 	osRelease, _ := sshRun(client, "cat /etc/os-release")
 	unameM, _ := sshRun(client, "uname -m")
@@ -407,7 +416,7 @@ func (s *Service) runAgentUpdate(ctx context.Context, client *ssh.Client, id uui
 
 	set("installing_service", "Замена бинарника и перезапуск")
 	script := buildAgentUpdateScript(remoteTmp, sum, binRemote, unit)
-	if out, err := sshRun(client, script); err != nil {
+	if out, err := sshRunRoot(client, script, sudoPassword); err != nil {
 		_ = s.appendInstallLog(ctx, id, "error", truncateLog(out, 500))
 		s.failInstall(ctx, id, "update_failed", "ошибка обновления agent")
 		return
@@ -449,7 +458,7 @@ func (s *Service) runAgentUpdate(ctx context.Context, client *ssh.Client, id uui
 	s.failInstall(ctx, id, "heartbeat_timeout", "агент не прислал heartbeat после обновления")
 }
 
-func (s *Service) runAgentInstall(ctx context.Context, client *ssh.Client, id uuid.UUID, inst db.ServersInstallation, set func(status, step string)) {
+func (s *Service) runAgentInstall(ctx context.Context, client *ssh.Client, id uuid.UUID, inst db.ServersInstallation, set func(status, step string), sudoPassword string) {
 	set("detecting_system", "Определение системы")
 	osRelease, _ := sshRun(client, "cat /etc/os-release")
 	unameM, _ := sshRun(client, "uname -m")
@@ -499,7 +508,8 @@ func (s *Service) runAgentInstall(ctx context.Context, client *ssh.Client, id uu
 	settings, _ := s.ensureSettings(ctx)
 	masterURL := settings.PublicUrl
 	script := buildInstallScript(remoteTmp, sum, masterURL, regToken, inst.ExpectedNodeUid.String())
-	if _, err := sshRun(client, script); err != nil {
+	if out, err := sshRunRoot(client, script, sudoPassword); err != nil {
+		_ = s.appendInstallLog(ctx, id, "error", truncateLog(out, 500))
 		s.failInstall(ctx, id, "install_failed", "ошибка установки agent")
 		return
 	}
@@ -529,7 +539,7 @@ func (s *Service) runAgentInstall(ctx context.Context, client *ssh.Client, id uu
 	s.failInstall(ctx, id, "registration_timeout", "агент не зарегистрировался вовремя")
 }
 
-func (s *Service) runBarnInstall(ctx context.Context, client *ssh.Client, id uuid.UUID, inst db.ServersInstallation, set func(status, step string)) {
+func (s *Service) runBarnInstall(ctx context.Context, client *ssh.Client, id uuid.UUID, inst db.ServersInstallation, set func(status, step string), sudoPassword string) {
 	set("detecting_system", "Определение системы")
 	osRelease, _ := sshRun(client, "cat /etc/os-release")
 	if !strings.Contains(osRelease, "Ubuntu") && !strings.Contains(osRelease, "Debian") {
@@ -563,7 +573,7 @@ func (s *Service) runBarnInstall(ctx context.Context, client *ssh.Client, id uui
 	repo := githubInstallRepo()
 	scriptURL := "https://raw.githubusercontent.com/" + repo + "/main/scripts/install.sh"
 	script := buildBarnInstallScript(scriptURL, domain, email, apiToken)
-	out, err := sshRun(client, script)
+	out, err := sshRunRoot(client, script, sudoPassword)
 	if err != nil {
 		_ = s.appendInstallLog(ctx, id, "error", truncateLog(out, 500))
 		clearString(&apiToken)
@@ -1023,13 +1033,19 @@ func (s *Service) uninstallAgent(ctx context.Context, req DeleteNodeRequest) err
 		return fmt.Errorf("%w: SSH host key is not trusted; reinstall or update the agent first", ErrInvalidInput)
 	}
 	client, err := sshDial(host, port, user, methods, known.Fingerprint)
-	auth.clear()
 	if err != nil {
+		auth.clear()
 		return fmt.Errorf("uninstall agent over SSH: %w", err)
 	}
 	defer client.Close()
-	if _, err := sshRun(client, buildAgentUninstallScript()); err != nil {
-		return fmt.Errorf("uninstall agent over SSH: %w", err)
+	sudoPassword := auth.Password
+	auth.clear()
+	defer clearString(&sudoPassword)
+	if err := ensureRootOrSudo(client, sudoPassword); err != nil {
+		return err
+	}
+	if out, err := sshRunRoot(client, buildAgentUninstallScript(), sudoPassword); err != nil {
+		return fmt.Errorf("uninstall agent over SSH: %s", truncateLog(out, 300))
 	}
 	return nil
 }
@@ -1050,15 +1066,16 @@ userdel dockpilot-agent 2>/dev/null || true
 
 // buildAgentUpdateScript replaces the agent binary and restarts the unit.
 // Does not touch config.json (keeps node_uid + token).
+// Must be run as root (or via sshRunRoot).
 func buildAgentUpdateScript(tmpPath, checksum, binRemote, unit string) string {
 	return fmt.Sprintf(`set -euo pipefail
 SUM=$(sha256sum %s | awk '{print $1}')
 test "$SUM" = %s
 mkdir -p "$(dirname %s)"
-systemctl stop %s || true
+systemctl stop %s 2>/dev/null || true
 install -o root -g root -m 0755 %s %s
 systemctl daemon-reload
-systemctl enable %s || true
+systemctl enable %s 2>/dev/null || true
 systemctl restart %s
 systemctl is-active %s
 rm -f %s

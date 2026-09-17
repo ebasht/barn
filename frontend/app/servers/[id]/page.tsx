@@ -50,6 +50,11 @@ export default function ServerDetailPage() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [deleteSkipUninstall, setDeleteSkipUninstall] = useState(false);
+  const [deleteHost, setDeleteHost] = useState("");
+  const [deletePort, setDeletePort] = useState("22");
+  const [deleteUser, setDeleteUser] = useState("root");
+  const [deleteSSHAuth, setDeleteSSHAuth] = useState<SSHAuthValues>(emptySSHAuth);
   const [busy, setBusy] = useState(false);
   const [accounts, setAccounts] = useState<BillingAccount[]>([]);
   const [billingAccountId, setBillingAccountId] = useState("");
@@ -118,6 +123,7 @@ export default function ServerDetailPage() {
       setAccounts(list);
       applyBillingForm(row);
       setUpdateHost((prev) => prev || row.hostname || "");
+      setDeleteHost((prev) => prev || row.hostname || "");
       setError(null);
     } catch (e) {
       setError(e instanceof ApiError ? e.message : t("servers.nodeLoadFailed"));
@@ -170,19 +176,42 @@ export default function ServerDetailPage() {
 
   useEffect(() => () => stopUpdatePolling(), [stopUpdatePolling]);
 
+  const openDelete = () => {
+    setError(null);
+    setDeleteSkipUninstall(false);
+    setDeleteHost((prev) => prev || updateHost || node?.hostname || "");
+    setDeletePort(updatePort || "22");
+    setDeleteUser(updateUser || "root");
+    setDeleteSSHAuth(emptySSHAuth());
+    setConfirmDelete(true);
+  };
+
   const handleDelete = async () => {
     if (!id) return;
+    if (node?.connection_type === "agent") {
+      if (!deleteSkipUninstall) {
+        if (!deleteHost.trim() || !sshAuthReady(deleteSSHAuth, deleteUser)) {
+          setError(t("servers.removeAgentNeedSSH"));
+          return;
+        }
+      }
+    }
     setBusy(true);
+    setError(null);
     try {
-      const credentials = node?.connection_type === "agent"
-        ? {
-            host: updateHost.trim(),
-            port: Number.parseInt(updatePort, 10) || 22,
-            username: updateUser.trim() || "root",
-            ...sshAuthBody(updateSSHAuth),
-          }
-        : undefined;
+      const credentials =
+        node?.connection_type === "agent"
+          ? deleteSkipUninstall
+            ? { skip_uninstall: true }
+            : {
+                host: deleteHost.trim(),
+                port: Number.parseInt(deletePort, 10) || 22,
+                username: deleteUser.trim() || "root",
+                ...sshAuthBody(deleteSSHAuth),
+              }
+          : undefined;
       await api.deleteServerNode(id, credentials);
+      setDeleteSSHAuth(emptySSHAuth());
       router.replace("/servers");
     } catch (e) {
       setError(e instanceof ApiError ? e.message : t("servers.nodeDeleteFailed"));
@@ -213,7 +242,7 @@ export default function ServerDetailPage() {
   const submitAgentUpdate = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!id) return;
-    if (!sshAuthReady(updateSSHAuth)) {
+    if (!sshAuthReady(updateSSHAuth, updateUser)) {
       setError(t("servers.updateAgentFailed"));
       return;
     }
@@ -348,7 +377,7 @@ export default function ServerDetailPage() {
             <button
               type="button"
               className="btn btn-secondary"
-              onClick={() => setConfirmDelete(true)}
+              onClick={openDelete}
             >
               {t("servers.removeServer")}
             </button>
@@ -449,6 +478,7 @@ export default function ServerDetailPage() {
                 values={updateSSHAuth}
                 onChange={setUpdateSSHAuth}
                 disabled={busy}
+                username={updateUser}
               />
               <div className="form-actions">
                 <button type="submit" className="btn" disabled={busy}>
@@ -848,20 +878,123 @@ export default function ServerDetailPage() {
         </div>
       )}
 
-      <ConfirmDialog
-        open={confirmDelete}
-        title={t("servers.removeServer")}
-        message={t(
-          node.connection_type === "agent"
-            ? "servers.removeAgentConfirm"
-            : "servers.removeServerConfirm",
-          { name: node.name },
-        )}
-        confirmLabel={t("common.delete")}
-        onConfirm={handleDelete}
-        onCancel={() => setConfirmDelete(false)}
-        busy={busy}
-      />
+      {confirmDelete && node.connection_type === "agent" ? (
+        <div className="modal-backdrop" onClick={() => !busy && setConfirmDelete(false)} role="presentation">
+          <div
+            className="modal card confirm-dialog"
+            onClick={(e) => e.stopPropagation()}
+            role="alertdialog"
+            aria-labelledby="remove-agent-title"
+          >
+            <h2 id="remove-agent-title">{t("servers.removeServer")}</h2>
+            <p className="confirm-dialog-message">
+              {t("servers.removeAgentConfirm", { name: node.name })}
+            </p>
+
+            <label className="field" style={{ display: "flex", gap: "0.5rem", alignItems: "flex-start" }}>
+              <input
+                type="checkbox"
+                checked={deleteSkipUninstall}
+                disabled={busy}
+                onChange={(e) => setDeleteSkipUninstall(e.target.checked)}
+                style={{ marginTop: "0.2rem" }}
+              />
+              <span>
+                {t("servers.removeAgentSkipUninstall")}
+                <span className="muted" style={{ display: "block", fontSize: "0.85rem", marginTop: "0.25rem" }}>
+                  {t("servers.removeAgentSkipUninstallHint")}
+                </span>
+              </span>
+            </label>
+
+            {!deleteSkipUninstall && (
+              <>
+                <p className="muted" style={{ marginBottom: 0 }}>
+                  {t("servers.removeAgentSSHHint")}
+                </p>
+                <div className="form-grid">
+                  <div className="field">
+                    <label className="label" htmlFor="delete-host">
+                      {t("servers.sshHost")}
+                    </label>
+                    <input
+                      id="delete-host"
+                      className="input"
+                      value={deleteHost}
+                      onChange={(e) => setDeleteHost(e.target.value)}
+                      disabled={busy}
+                      autoComplete="off"
+                      required
+                    />
+                  </div>
+                  <div className="field">
+                    <label className="label" htmlFor="delete-port">
+                      {t("servers.port")}
+                    </label>
+                    <input
+                      id="delete-port"
+                      className="input"
+                      value={deletePort}
+                      onChange={(e) => setDeletePort(e.target.value)}
+                      disabled={busy}
+                      inputMode="numeric"
+                    />
+                  </div>
+                  <div className="field">
+                    <label className="label" htmlFor="delete-user">
+                      {t("servers.sshUser")}
+                    </label>
+                    <input
+                      id="delete-user"
+                      className="input"
+                      value={deleteUser}
+                      onChange={(e) => setDeleteUser(e.target.value)}
+                      disabled={busy}
+                      autoComplete="username"
+                    />
+                  </div>
+                </div>
+                <SSHAuthFields
+                  idPrefix="delete"
+                  values={deleteSSHAuth}
+                  onChange={setDeleteSSHAuth}
+                  disabled={busy}
+                  username={deleteUser}
+                />
+              </>
+            )}
+
+            <div className="confirm-dialog-actions">
+              <button
+                type="button"
+                className="btn btn-secondary"
+                onClick={() => setConfirmDelete(false)}
+                disabled={busy}
+              >
+                {t("common.cancel")}
+              </button>
+              <button
+                type="button"
+                className="btn btn-danger"
+                onClick={() => void handleDelete()}
+                disabled={busy}
+              >
+                {busy ? t("common.loading") : t("common.delete")}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : (
+        <ConfirmDialog
+          open={confirmDelete}
+          title={t("servers.removeServer")}
+          message={t("servers.removeServerConfirm", { name: node.name })}
+          confirmLabel={t("common.delete")}
+          onConfirm={handleDelete}
+          onCancel={() => setConfirmDelete(false)}
+          busy={busy}
+        />
+      )}
     </div>
   );
 }

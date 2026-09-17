@@ -98,7 +98,7 @@ export default function NewServerPage() {
 
   const submitInstall = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!sshAuthReady(sshAuth)) {
+    if (!sshAuthReady(sshAuth, username)) {
       setError(t("servers.installStartFailed"));
       return;
     }
@@ -351,6 +351,7 @@ export default function NewServerPage() {
             values={sshAuth}
             onChange={setSSHAuth}
             disabled={busy}
+            username={username}
           />
 
           {kind === "barn" && (

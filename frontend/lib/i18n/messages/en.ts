@@ -972,6 +972,12 @@ export const en = {
       "Paste the full PEM/OpenSSH key. It stays in memory for the install only and is never stored in the database.",
     sshPrivateKeyPassphrase: "Key passphrase",
     sshPrivateKeyPassphraseHint: "Only if the key is encrypted.",
+    sshSudoPassword: "User password (sudo)",
+    sshSudoPasswordRequired: "User password (required for sudo)",
+    sshSudoPasswordHint:
+      "Needed when the SSH user is not root: used for sudo (systemctl and writes under /opt).",
+    sshSudoPasswordRequiredHint:
+      "SSH user is not root — enter that user’s password for sudo (otherwise systemctl and /opt writes will fail).",
     billingOptional: "Billing (optional)",
     purpose: "Purpose",
     costMajor: "Cost (major units)",
@@ -996,7 +1002,12 @@ export const en = {
     removeServer: "Remove server",
     removeServerConfirm: "Remove «{name}» from Barn?",
     removeAgentConfirm:
-      "Uninstall the agent from «{name}» and disconnect it from the master? The SSH details from the agent update form will be used.",
+      "Uninstall the agent from «{name}» and disconnect it from the master. SSH is required to remove the service on the VPS.",
+    removeAgentSSHHint: "SSH credentials to uninstall the agent",
+    removeAgentSkipUninstall: "Remove from panel only (do not uninstall on the VPS)",
+    removeAgentSkipUninstallHint:
+      "Use this if the server is unreachable or you do not have SSH credentials.",
+    removeAgentNeedSSH: "Provide SSH credentials or choose “panel only”.",
     nodeInfo: "Server info",
     nodeUid: "Node UID",
     hostname: "Hostname",

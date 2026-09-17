@@ -254,6 +254,7 @@ type UpdateAgentRequest struct {
 
 // DeleteNodeRequest contains SSH credentials used to uninstall an agent before
 // its node record and master credentials are removed.
+// When SkipUninstall is true, the node is removed from the master only.
 type DeleteNodeRequest struct {
 	Host                 string `json:"host"`
 	Port                 int    `json:"port"`
@@ -261,6 +262,7 @@ type DeleteNodeRequest struct {
 	Password             string `json:"password"`
 	PrivateKey           string `json:"private_key"`
 	PrivateKeyPassphrase string `json:"private_key_passphrase"`
+	SkipUninstall        bool   `json:"skip_uninstall"`
 }
 
 type InstallationResponse struct {

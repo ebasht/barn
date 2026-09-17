@@ -18,22 +18,34 @@ export function sshAuthBody(values: SSHAuthValues): {
 } {
   if (values.mode === "private_key") {
     const body: {
+      password?: string;
       private_key?: string;
       private_key_passphrase?: string;
     } = { private_key: values.privateKey };
     if (values.passphrase) {
       body.private_key_passphrase = values.passphrase;
     }
+    // Used for sudo when SSH user is not root.
+    if (values.password) {
+      body.password = values.password;
+    }
     return body;
   }
   return { password: values.password };
 }
 
-export function sshAuthReady(values: SSHAuthValues): boolean {
+export function sshAuthReady(values: SSHAuthValues, username?: string): boolean {
   if (values.mode === "private_key") {
-    return values.privateKey.trim().length > 0;
+    if (values.privateKey.trim().length === 0) return false;
+    if (needsSudoPassword(username) && values.password.length === 0) return false;
+    return true;
   }
   return values.password.length > 0;
+}
+
+export function needsSudoPassword(username?: string): boolean {
+  const user = (username ?? "root").trim().toLowerCase();
+  return user !== "" && user !== "root";
 }
 
 type Props = {
@@ -41,10 +53,19 @@ type Props = {
   values: SSHAuthValues;
   onChange: (next: SSHAuthValues) => void;
   disabled?: boolean;
+  /** SSH username — when not root, sudo password is required with private key. */
+  username?: string;
 };
 
-export function SSHAuthFields({ idPrefix, values, onChange, disabled }: Props) {
+export function SSHAuthFields({
+  idPrefix,
+  values,
+  onChange,
+  disabled,
+  username,
+}: Props) {
   const { t } = useI18n();
+  const sudoRequired = needsSudoPassword(username);
 
   return (
     <>
@@ -78,7 +99,6 @@ export function SSHAuthFields({ idPrefix, values, onChange, disabled }: Props) {
                 onChange({
                   ...values,
                   mode: "private_key",
-                  password: "",
                 })
               }
             />{" "}
@@ -120,10 +140,35 @@ export function SSHAuthFields({ idPrefix, values, onChange, disabled }: Props) {
               disabled={disabled}
               onChange={(e) => onChange({ ...values, privateKey: e.target.value })}
               required
-              style={{ fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace", fontSize: "0.8rem" }}
+              style={{
+                fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace",
+                fontSize: "0.8rem",
+              }}
             />
             <p className="muted" style={{ margin: "0.35rem 0 0", fontSize: "0.85rem" }}>
               {t("servers.sshPrivateKeyHint")}
+            </p>
+          </div>
+          <div className="field">
+            <label className="label" htmlFor={`${idPrefix}-sudo`}>
+              {sudoRequired
+                ? t("servers.sshSudoPasswordRequired")
+                : t("servers.sshSudoPassword")}
+            </label>
+            <input
+              id={`${idPrefix}-sudo`}
+              className="input"
+              type="password"
+              autoComplete="current-password"
+              value={values.password}
+              disabled={disabled}
+              onChange={(e) => onChange({ ...values, password: e.target.value })}
+              required={sudoRequired}
+            />
+            <p className="muted" style={{ margin: "0.35rem 0 0", fontSize: "0.85rem" }}>
+              {sudoRequired
+                ? t("servers.sshSudoPasswordRequiredHint")
+                : t("servers.sshSudoPasswordHint")}
             </p>
           </div>
           <div className="field">

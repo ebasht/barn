@@ -21,3 +21,10 @@ func TestBuildAgentUninstallScriptRemovesCurrentAndLegacyAgent(t *testing.T) {
 		}
 	}
 }
+
+func TestStrconvQuoteEscapes(t *testing.T) {
+	q := strconvQuote("a'b\"c")
+	if !strings.HasPrefix(q, `"`) || !strings.HasSuffix(q, `"`) {
+		t.Fatalf("unexpected quote: %s", q)
+	}
+}

@@ -257,8 +257,10 @@ func (s *Service) DeleteNode(ctx context.Context, id uuid.UUID, req DeleteNodeRe
 		return fmt.Errorf("%w: cannot delete local master node", ErrForbidden)
 	}
 	if node.ConnectionType == ConnAgent {
-		if err := s.uninstallAgent(ctx, req); err != nil {
-			return err
+		if !req.SkipUninstall {
+			if err := s.uninstallAgent(ctx, req); err != nil {
+				return err
+			}
 		}
 	}
 	_ = s.q.RevokeNodeCredentials(ctx, id)

@@ -30,9 +30,11 @@ One Barn instance can run as **standalone** (default), **master**, or **managed_
 
 ## Install monitoring agent
 
-From Master: **Add server → Install agent** or **Full Barn**. SSH credentials (password and/or private key) stay in memory only (TTL ~10–45 min), never in PostgreSQL or logs. Host key fingerprint must be confirmed before install. API image embeds `barn-agent-linux-amd64` (и `dockpilot-agent` для compat) and `arm64` under `/app/agents`.
+From Master: **Add server → Install agent** or **Full Barn**. SSH credentials (password and/or private key) stay in memory only (TTL ~10–45 min), never in PostgreSQL or logs. Host key fingerprint must be confirmed before install. Privileged steps (`systemctl`, `/opt`, …) run as root or via `sudo` (passwordless, or the SSH password / optional sudo password when using a key). API image embeds `barn-agent-linux-amd64` (и `dockpilot-agent` для compat) and `arm64` under `/app/agents`.
 
 To **update** an existing agent: open the server page → **Update agent** (`POST /api/servers/nodes/{id}/update-agent`). Same SSH + host-key flow (password or private key); binary is replaced and the service restarted without re-registration (config/token kept).
+
+To **remove** an agent: the dialog asks for SSH (to uninstall on the VPS) or **panel only** (`skip_uninstall`) if the host is unreachable.
 
 See also [barn-agent.md](./barn-agent.md).
 

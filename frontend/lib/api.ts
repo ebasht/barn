@@ -61,6 +61,7 @@ import type {
   PairBarnRequest,
   CreateAgentInstallRequest,
   UpdateAgentRequest,
+  DeleteServerNodeRequest,
   UpdateServerNodeRequest,
   UpdateServerNodeBillingRequest,
   ServerInstallation,
@@ -634,7 +635,7 @@ export const api = {
       body: JSON.stringify(body),
     }),
 
-  deleteServerNode: (id: string, body?: UpdateAgentRequest) =>
+  deleteServerNode: (id: string, body?: DeleteServerNodeRequest) =>
     request<void>(`/api/servers/nodes/${id}`, {
       method: "DELETE",
       body: body ? JSON.stringify(body) : undefined,

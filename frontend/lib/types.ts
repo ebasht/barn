@@ -777,6 +777,16 @@ export interface UpdateAgentRequest {
   private_key_passphrase?: string;
 }
 
+export interface DeleteServerNodeRequest {
+  host?: string;
+  port?: number;
+  username?: string;
+  password?: string;
+  private_key?: string;
+  private_key_passphrase?: string;
+  skip_uninstall?: boolean;
+}
+
 export interface ServerInstallation {
   id: string;
   status: string;
