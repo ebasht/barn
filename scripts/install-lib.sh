@@ -209,6 +209,10 @@ install_packages() {
         log "certbot already installed — skipping"
       fi
 
+      if ! command -v ufw >/dev/null 2>&1; then
+        apt_install ufw || log "WARN: ufw not installed — open ports 80/443 manually for Let's Encrypt"
+      fi
+
       if ! command -v docker >/dev/null 2>&1; then
         apt_install docker.io || return 1
       else
@@ -559,7 +563,28 @@ issue_panel_cert() {
   remove_conf_d_hash_snippets
   comment_all_nginx_hash_directives
   ensure_nginx_config_valid || die "nginx -t failed before certbot — fix /etc/nginx manually"
+  ensure_ufw_http_https
   certbot --nginx -d "$domain" --non-interactive --agree-tos -m "$email" --redirect --no-eff-email
+}
+
+# Open HTTP/HTTPS (and SSH) via ufw so Let's Encrypt can reach ACME on :80.
+# OpenSSH is allowed before enable to avoid locking out the installer.
+ensure_ufw_http_https() {
+  if ! command -v ufw >/dev/null 2>&1; then
+    log "WARN: ufw not found — skip firewall rules (ensure ports 80/443 are open externally)"
+    return 0
+  fi
+  log "Configuring ufw for SSH, HTTP, HTTPS ..."
+  # Prefer profile name; fall back to port 22 if OpenSSH profile is missing.
+  if ufw app list 2>/dev/null | grep -qx 'OpenSSH'; then
+    ufw allow OpenSSH >/dev/null
+  else
+    ufw allow 22/tcp >/dev/null
+  fi
+  ufw allow 80/tcp >/dev/null
+  ufw allow 443/tcp >/dev/null
+  ufw --force enable >/dev/null
+  ufw status || true
 }
 
 wait_for_api() {
