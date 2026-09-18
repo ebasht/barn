@@ -417,7 +417,7 @@ func (s *Service) runAgentUpdate(ctx context.Context, client *ssh.Client, id uui
 	set("installing_service", "Замена бинарника и перезапуск")
 	script := buildAgentUpdateScript(remoteTmp, sum, binRemote, unit)
 	if out, err := sshRunRoot(client, script, sudoPassword); err != nil {
-		_ = s.appendInstallLog(ctx, id, "error", truncateLog(out, 500))
+		_ = s.appendInstallLog(ctx, id, "error", truncateLog(out, 800))
 		s.failInstall(ctx, id, "update_failed", "ошибка обновления agent")
 		return
 	}
@@ -509,7 +509,7 @@ func (s *Service) runAgentInstall(ctx context.Context, client *ssh.Client, id uu
 	masterURL := settings.PublicUrl
 	script := buildInstallScript(remoteTmp, sum, masterURL, regToken, inst.ExpectedNodeUid.String())
 	if out, err := sshRunRoot(client, script, sudoPassword); err != nil {
-		_ = s.appendInstallLog(ctx, id, "error", truncateLog(out, 500))
+		_ = s.appendInstallLog(ctx, id, "error", truncateLog(out, 800))
 		s.failInstall(ctx, id, "install_failed", "ошибка установки agent")
 		return
 	}
@@ -575,7 +575,7 @@ func (s *Service) runBarnInstall(ctx context.Context, client *ssh.Client, id uui
 	script := buildBarnInstallScript(scriptURL, domain, email, apiToken)
 	out, err := sshRunRoot(client, script, sudoPassword)
 	if err != nil {
-		_ = s.appendInstallLog(ctx, id, "error", truncateLog(out, 500))
+		_ = s.appendInstallLog(ctx, id, "error", truncateLog(out, 800))
 		clearString(&apiToken)
 		s.failInstall(ctx, id, "install_failed", "ошибка установки Barn")
 		return
@@ -890,12 +890,34 @@ func (s *Service) agentBinaryPath(goArch string) string {
 }
 
 func sanitizeInstallLog(msg string) string {
-	// strip anything that looks like a password assignment
-	lower := strings.ToLower(msg)
-	if strings.Contains(lower, "password") || strings.Contains(lower, "token") {
-		return "[redacted]"
+	if msg == "" {
+		return msg
 	}
-	return msg
+	out := msg
+	out = redactPEM.ReplaceAllString(out, "[redacted-pem]")
+	out = redactSecretKV.ReplaceAllString(out, `${1}[redacted]`)
+	out = redactTokenFlag.ReplaceAllString(out, `${1}[redacted]`)
+	out = redactBearer.ReplaceAllString(out, `${1}[redacted]`)
+	return out
+}
+
+var (
+	redactPEM = regexp.MustCompile(
+		`(?s)-----BEGIN [^-]*PRIVATE KEY-----.*?-----END [^-]*PRIVATE KEY-----`,
+	)
+	redactSecretKV = regexp.MustCompile(
+		`(?i)(password\s*[=:]\s*|passwd\s*[=:]\s*|secret\s*[=:]\s*|node_token"\s*:\s*")[^"\s,}]+`,
+	)
+	redactTokenFlag = regexp.MustCompile(
+		`(?i)(-registration-token\s+|--token\s+|token=)(\S+)`,
+	)
+	redactBearer = regexp.MustCompile(
+		`(?i)(bearer\s+)(\S+)`,
+	)
+)
+
+func strconvQuote(s string) string {
+	return strconv.Quote(s)
 }
 
 func clearString(s *string) {
@@ -1045,7 +1067,7 @@ func (s *Service) uninstallAgent(ctx context.Context, req DeleteNodeRequest) err
 		return err
 	}
 	if out, err := sshRunRoot(client, buildAgentUninstallScript(), sudoPassword); err != nil {
-		return fmt.Errorf("uninstall agent over SSH: %s", truncateLog(out, 300))
+		return fmt.Errorf("uninstall agent over SSH: %s", sanitizeInstallLog(truncateLog(out, 300)))
 	}
 	return nil
 }

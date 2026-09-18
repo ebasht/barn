@@ -1,6 +1,7 @@
 package servers
 
 import (
+	"strings"
 	"testing"
 	"time"
 
@@ -76,11 +77,30 @@ func TestDedupKey(t *testing.T) {
 }
 
 func TestSanitizeInstallLog(t *testing.T) {
-	if got := sanitizeInstallLog("password=secret"); got != "[redacted]" {
+	if got := sanitizeInstallLog("password=secret"); !strings.Contains(got, "[redacted]") || !strings.Contains(got, "password") {
 		t.Fatalf("got %q", got)
 	}
 	if got := sanitizeInstallLog("Подключение к серверу"); got != "Подключение к серверу" {
 		t.Fatalf("got %q", got)
+	}
+	msg := `runuser failed: -registration-token reg_abc123 deadbeef`
+	got := sanitizeInstallLog(msg)
+	if strings.Contains(got, "reg_abc123") {
+		t.Fatalf("token not masked: %q", got)
+	}
+	if !strings.Contains(got, "runuser failed") {
+		t.Fatalf("context lost: %q", got)
+	}
+	if strings.Contains(got, "[redacted]") && got == "[redacted]" {
+		t.Fatal("entire message wiped")
+	}
+	pem := "before\n-----BEGIN OPENSSH PRIVATE KEY-----\nabc\n-----END OPENSSH PRIVATE KEY-----\nafter"
+	got = sanitizeInstallLog(pem)
+	if strings.Contains(got, "BEGIN OPENSSH") {
+		t.Fatalf("pem not masked: %q", got)
+	}
+	if !strings.Contains(got, "before") || !strings.Contains(got, "after") {
+		t.Fatalf("context lost around pem: %q", got)
 	}
 }
 
