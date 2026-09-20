@@ -936,7 +936,7 @@ export const en = {
       offline: "Offline",
     },
     newServerTitle: "Add server",
-    newServerSubtitle: "Install a full Barn panel or a lightweight monitoring agent over SSH.",
+    newServerSubtitle: "Connect an existing Barn panel or install a lightweight monitoring agent.",
     kindBarn: "Full Barn",
     kindBarnHint:
       "Install the full panel on a VPS via SSH (root + password or key), then pair it to this Master.",
@@ -1064,7 +1064,7 @@ export const en = {
     enableMaster: "Enable master mode",
     joinAsSlaveTitle: "Join as slave (managed node)",
     joinAsSlaveHint:
-      "You do not enable slave mode here. Generate a pairing code, then add this panel from the Master (Add server → Full Barn with pairing, or the Master installs it over SSH).",
+      "You do not enable slave mode here. Generate a pairing code, then add this panel from the Master (Add server → Connect existing Barn).",
     joinAsSlaveStep1: "Generate a one-time pairing code on this panel.",
     joinAsSlaveStep2:
       "On the Master: Add server → Connect existing Barn → paste this panel URL and the code.",

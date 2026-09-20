@@ -57,6 +57,8 @@ type Client interface {
 	// RunOnce runs a one-shot container (network host optional) and returns its exit code.
 	RunOnce(ctx context.Context, opts RunOnceOptions, stdin io.Reader, stdout, stderr io.Writer) (exitCode int, err error)
 	ContainerImage(ctx context.Context, name string) (string, error)
+	// NamedVolumeMount returns the Docker volume name mounted at target, or "" if none.
+	NamedVolumeMount(ctx context.Context, containerName, target string) (string, error)
 	ImageExists(ctx context.Context, ref string) bool
 	Prune(ctx context.Context) (PruneResult, error)
 	DiskUsage(ctx context.Context) (DiskUsageSnapshot, error)

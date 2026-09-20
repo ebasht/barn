@@ -1,7 +1,7 @@
 # Local development with barn naming (can detect legacy dock-pilot volumes).
 services:
   postgres:
-    image: postgres:16-alpine
+    image: pgvector/pgvector:pg16
     container_name: barn-postgres
     restart: unless-stopped
     environment:

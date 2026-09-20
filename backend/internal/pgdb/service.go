@@ -87,10 +87,7 @@ func (s *Service) CreateInstance(ctx context.Context, req CreateInstanceRequest)
 	}
 	// Single host instance — fixed slug/container so only one can run.
 	slug := "postgres"
-	image := strings.TrimSpace(req.Image)
-	if image == "" {
-		image = "postgres:16-alpine"
-	}
+	image := NormalizeManagedPostgresImage(req.Image)
 	adminUser := strings.TrimSpace(req.AdminUser)
 	if adminUser == "" {
 		adminUser = "postgres"
@@ -166,6 +163,20 @@ func (s *Service) DeployInstanceWithLog(ctx context.Context, id uuid.UUID, logFn
 	}
 
 	log("info", fmt.Sprintf("deploying %s (%s)", inst.Name, inst.Image))
+
+	image := NormalizeManagedPostgresImage(inst.Image)
+	if image != inst.Image {
+		updated, updErr := s.queries.UpdatePgInstance(ctx, db.UpdatePgInstanceParams{
+			ID:    id,
+			Image: pgtype.Text{String: image, Valid: true},
+		})
+		if updErr != nil {
+			return InstanceResponse{}, updErr
+		}
+		inst = updated
+		log("info", "upgraded postgres image to "+image+" (pgvector); data volume will be reused")
+	}
+
 	_, _ = s.queries.UpdatePgInstanceStatus(ctx, db.UpdatePgInstanceStatusParams{
 		ID: id, Status: "deploying", Message: "pulling image",
 	})
@@ -214,8 +225,8 @@ func (s *Service) DeployInstanceWithLog(ctx context.Context, id uuid.UUID, logFn
 		log("info", "host network mode")
 	}
 
-	vol := s.volumeName(inst)
 	cname := s.containerName(inst)
+	vol := s.volumeName(inst)
 	_, _ = s.queries.UpdatePgInstanceStatus(ctx, db.UpdatePgInstanceStatusParams{
 		ID: id, Status: "deploying", Message: "starting container",
 	})

@@ -94,7 +94,7 @@ CREATE TABLE pdb_instances (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     name TEXT NOT NULL,
     slug TEXT NOT NULL UNIQUE,
-    image TEXT NOT NULL DEFAULT 'postgres:16-alpine',
+    image TEXT NOT NULL DEFAULT 'pgvector/pgvector:pg16',
     container_port INT NOT NULL DEFAULT 5432,
     host_port INT,
     docker_network_host BOOLEAN NOT NULL DEFAULT false,

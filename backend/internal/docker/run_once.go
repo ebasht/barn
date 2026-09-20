@@ -4,8 +4,10 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"strings"
 
 	"github.com/docker/docker/api/types/container"
+	"github.com/docker/docker/errdefs"
 	"github.com/docker/docker/pkg/stdcopy"
 )
 
@@ -121,6 +123,39 @@ func (c *RealClient) ContainerImage(ctx context.Context, name string) (string, e
 	return info.Config.Image, nil
 }
 
+// NamedVolumeMount returns the named Docker volume mounted at target inside the container.
+// Empty string means the container is missing or the path is not a named volume mount.
+func (c *RealClient) NamedVolumeMount(ctx context.Context, containerName, target string) (string, error) {
+	containerName = SanitizeContainerName(containerName)
+	if containerName == "" {
+		return "", fmt.Errorf("container name is empty")
+	}
+	info, err := c.cli.ContainerInspect(ctx, containerName)
+	if err != nil {
+		if errdefs.IsNotFound(err) {
+			return "", nil
+		}
+		return "", err
+	}
+	want := strings.TrimRight(strings.TrimSpace(target), "/")
+	if want == "" {
+		return "", nil
+	}
+	for _, m := range info.Mounts {
+		dest := strings.TrimRight(m.Destination, "/")
+		if dest != want {
+			continue
+		}
+		if string(m.Type) != "volume" {
+			continue
+		}
+		if name := strings.TrimSpace(m.Name); name != "" {
+			return name, nil
+		}
+	}
+	return "", nil
+}
+
 // ImageExists reports whether a local image ref exists.
 func (c *RealClient) ImageExists(ctx context.Context, ref string) bool {
 	ref = normalizeImageRef(ref)
@@ -141,6 +176,10 @@ func (s *StubClient) RunOnce(ctx context.Context, opts RunOnceOptions, stdin io.
 
 func (s *StubClient) ContainerImage(ctx context.Context, name string) (string, error) {
 	return "postgres:16", nil
+}
+
+func (s *StubClient) NamedVolumeMount(ctx context.Context, containerName, target string) (string, error) {
+	return "", nil
 }
 
 func (s *StubClient) ImageExists(ctx context.Context, ref string) bool {

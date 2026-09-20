@@ -18,7 +18,7 @@ API_IMAGE="${API_IMAGE:-barn-api:latest}"
 FRONTEND_IMAGE="${FRONTEND_IMAGE:-barn-frontend:latest}"
 MIGRATE_IMAGE="${MIGRATE_IMAGE:-barn-migrate:latest}"
 POSTGRES_IMAGE="${POSTGRES_IMAGE:-barn-postgres:latest}"
-POSTGRES_BASE="${POSTGRES_BASE:-postgres:16-alpine}"
+POSTGRES_BASE="${POSTGRES_BASE:-pgvector/pgvector:pg16}"
 DOCKER_PLATFORM="${DOCKER_PLATFORM:-linux/amd64}"
 export DOCKER_PLATFORM
 OUTPUT_DIR="${OUTPUT_DIR:-dist}"

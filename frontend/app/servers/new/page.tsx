@@ -13,7 +13,6 @@ import { useI18n } from "@/lib/i18n/context";
 import type { ServerInstallation, ServerInstallationLog } from "@/lib/types";
 
 type WizardKind = "choose" | "form" | "pair" | "install";
-type InstallKind = "barn" | "agent";
 
 const TERMINAL_INSTALL = new Set(["completed", "failed", "cancelled"]);
 
@@ -27,7 +26,6 @@ const emptySSHAuth = (): SSHAuthValues => ({
 export default function NewServerPage() {
   const { t } = useI18n();
   const [step, setStep] = useState<WizardKind>("choose");
-  const [kind, setKind] = useState<InstallKind>("barn");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -36,8 +34,6 @@ export default function NewServerPage() {
   const [port, setPort] = useState("22");
   const [username, setUsername] = useState("root");
   const [sshAuth, setSSHAuth] = useState<SSHAuthValues>(emptySSHAuth);
-  const [panelUrl, setPanelUrl] = useState("");
-  const [email, setEmail] = useState("");
 
   const [pairName, setPairName] = useState("");
   const [pairUrl, setPairUrl] = useState("");
@@ -90,12 +86,6 @@ export default function NewServerPage() {
 
   useEffect(() => () => stopPolling(), [stopPolling]);
 
-  const choose = (next: InstallKind) => {
-    setKind(next);
-    setError(null);
-    setStep("form");
-  };
-
   const submitInstall = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!sshAuthReady(sshAuth, username)) {
@@ -106,7 +96,7 @@ export default function NewServerPage() {
     setError(null);
     try {
       const body: Parameters<typeof api.startAgentInstall>[0] = {
-        kind,
+        kind: "agent",
         name: name.trim(),
         host: host.trim(),
         ...sshAuthBody(sshAuth),
@@ -114,10 +104,6 @@ export default function NewServerPage() {
       const portNum = parseInt(port, 10);
       if (Number.isFinite(portNum) && portNum > 0) body.port = portNum;
       if (username.trim()) body.username = username.trim();
-      if (kind === "barn") {
-        body.panel_url = panelUrl.trim();
-        if (email.trim()) body.email = email.trim();
-      }
 
       const inst = await api.startAgentInstall(body);
       setInstall(inst);
@@ -200,14 +186,6 @@ export default function NewServerPage() {
           <button
             type="button"
             className="choice-option"
-            onClick={() => choose("barn")}
-          >
-            <span className="choice-option-title">{t("servers.kindBarn")}</span>
-            <span className="choice-option-hint">{t("servers.kindBarnHint")}</span>
-          </button>
-          <button
-            type="button"
-            className="choice-option"
             onClick={() => {
               setError(null);
               setStep("pair");
@@ -219,7 +197,10 @@ export default function NewServerPage() {
           <button
             type="button"
             className="choice-option"
-            onClick={() => choose("agent")}
+            onClick={() => {
+              setError(null);
+              setStep("form");
+            }}
           >
             <span className="choice-option-title">{t("servers.kindAgent")}</span>
             <span className="choice-option-hint">{t("servers.kindAgentHint")}</span>
@@ -285,11 +266,9 @@ export default function NewServerPage() {
 
       {step === "form" && (
         <form className="card" onSubmit={submitInstall}>
-          <h2 className="section-title">
-            {kind === "barn" ? t("servers.kindBarn") : t("servers.kindAgent")}
-          </h2>
+          <h2 className="section-title">{t("servers.kindAgent")}</h2>
           <p className="muted" style={{ marginTop: 0 }}>
-            {kind === "barn" ? t("servers.sshFormHintBarn") : t("servers.sshFormHintAgent")}
+            {t("servers.sshFormHintAgent")}
           </p>
 
           <div className="field">
@@ -353,44 +332,6 @@ export default function NewServerPage() {
             disabled={busy}
             username={username}
           />
-
-          {kind === "barn" && (
-            <>
-              <div className="field">
-                <label className="label" htmlFor="slave-panel-url">
-                  {t("servers.panelUrl")}
-                </label>
-                <input
-                  id="slave-panel-url"
-                  className="input"
-                  type="url"
-                  placeholder="https://pilot.example.com"
-                  value={panelUrl}
-                  onChange={(e) => setPanelUrl(e.target.value)}
-                  required
-                />
-                <p className="muted" style={{ margin: "0.35rem 0 0", fontSize: "0.85rem" }}>
-                  {t("servers.panelUrlHint")}
-                </p>
-              </div>
-              <div className="field">
-                <label className="label" htmlFor="slave-email">
-                  {t("servers.certEmail")}
-                </label>
-                <input
-                  id="slave-email"
-                  className="input"
-                  type="email"
-                  placeholder="admin@example.com"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                />
-                <p className="muted" style={{ margin: "0.35rem 0 0", fontSize: "0.85rem" }}>
-                  {t("servers.certEmailHint")}
-                </p>
-              </div>
-            </>
-          )}
 
           <div className="form-actions">
             <button

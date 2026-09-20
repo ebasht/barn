@@ -68,10 +68,16 @@ func volumeForManagedContainer(container string) string {
 // resolvePGNames picks the managed Postgres container/volume.
 // Prefer barn-postgres (canonical). Fall back to legacy managed names, and only
 // then to dock-pilot-postgres (old shared panel+managed installs).
+// When a container already exists, reuse its real PGDATA volume so image swaps
+// never attach a different empty volume.
 func (s *Service) resolvePGNames(ctx context.Context) (container, volume string) {
 	st, err := s.docker.InspectContainer(ctx, managedPostgresCandidates...)
 	if err == nil && st.Found && st.Container != "" {
-		return st.Container, volumeForManagedContainer(st.Container)
+		vol := volumeForManagedContainer(st.Container)
+		if mounted, mErr := s.docker.NamedVolumeMount(ctx, st.Container, "/var/lib/postgresql/data"); mErr == nil && mounted != "" {
+			vol = mounted
+		}
+		return st.Container, vol
 	}
 	return "barn-postgres", "barn-postgres-data"
 }
