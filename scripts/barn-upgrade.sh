@@ -258,12 +258,22 @@ else
   [[ -f "$COMPOSE" ]] || COMPOSE="docker-compose.dock-pilot.yml"
 fi
 
+# Optional sticky override so compose keeps using the live PGDATA volume name.
+PG_VOLUME_OVERRIDE=""
+if [[ -f "${ROOT}/docker-compose.barn-pgdata.yml" ]]; then
+  PG_VOLUME_OVERRIDE="${ROOT}/docker-compose.barn-pgdata.yml"
+fi
+
 compose() {
+  local args=()
   if [[ -n "$COMPOSE_P" ]]; then
-    docker compose -p "$COMPOSE_P" -f "$COMPOSE" "$@"
-  else
-    docker compose -f "$COMPOSE" "$@"
+    args+=(-p "$COMPOSE_P")
   fi
+  args+=(-f "$COMPOSE")
+  if [[ -n "${PG_VOLUME_OVERRIDE:-}" && -f "$PG_VOLUME_OVERRIDE" ]]; then
+    args+=(-f "$PG_VOLUME_OVERRIDE")
+  fi
+  docker compose "${args[@]}" "$@"
 }
 
 log "Running migrations..."
@@ -273,7 +283,53 @@ fi
 
 log "Recreating postgres + api + frontend (picks up new images and compose)..."
 docker rm -f dock-pilot-telegram-socks-relay barn-telegram-socks-relay 2>/dev/null || true
+
+# Remember the live PGDATA volume before removing the container so we never
+# attach an empty compose volume over existing managed/panel data.
+PG_LIVE_VOL=""
+for c in barn-postgres dock-pilot-postgres dockpilot-postgres; do
+  if docker inspect "$c" >/dev/null 2>&1; then
+    PG_LIVE_VOL="$(docker inspect "$c" --format '{{range .Mounts}}{{if eq .Destination "/var/lib/postgresql/data"}}{{.Name}}{{end}}{{end}}' 2>/dev/null || true)"
+    [[ -n "$PG_LIVE_VOL" ]] && break
+  fi
+done
+if [[ -n "$PG_LIVE_VOL" ]]; then
+  PG_VOLUME_OVERRIDE="${ROOT}/docker-compose.barn-pgdata.yml"
+  cat >"$PG_VOLUME_OVERRIDE" <<EOF
+services:
+  postgres:
+    volumes:
+      - barn_pgdata_live:/var/lib/postgresql/data
+volumes:
+  barn_pgdata_live:
+    external: true
+    name: ${PG_LIVE_VOL}
+EOF
+  log "Reusing existing Postgres data volume: ${PG_LIVE_VOL}"
+fi
+
+docker rm -f barn-postgres dock-pilot-postgres dockpilot-postgres 2>/dev/null || true
 compose up -d --force-recreate postgres api frontend
+
+log "Waiting for postgres..."
+PG_OK=0
+for _ in $(seq 1 60); do
+  if compose exec -T postgres pg_isready >/dev/null 2>&1; then
+    PG_OK=1
+    break
+  fi
+  sleep 2
+done
+[[ "$PG_OK" -eq 1 ]] || die "postgres did not become ready after recreate"
+
+log "Verifying pgvector in running postgres..."
+PG_CTR="$(compose ps -q postgres 2>/dev/null || true)"
+[[ -n "$PG_CTR" ]] || die "postgres container id not found"
+if ! docker exec "$PG_CTR" sh -c \
+  'test -f /usr/share/postgresql/16/extension/vector.control || test -f /usr/local/share/postgresql/extension/vector.control'; then
+  die "running postgres image has no pgvector (vector.control missing) — release image is wrong or not loaded"
+fi
+log "pgvector OK"
 
 if [[ -x "${ROOT}/scripts/configure-panel-nginx.sh" ]]; then
   set -a

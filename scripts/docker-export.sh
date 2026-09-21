@@ -18,6 +18,9 @@ API_IMAGE="${API_IMAGE:-barn-api:latest}"
 FRONTEND_IMAGE="${FRONTEND_IMAGE:-barn-frontend:latest}"
 MIGRATE_IMAGE="${MIGRATE_IMAGE:-barn-migrate:latest}"
 POSTGRES_IMAGE="${POSTGRES_IMAGE:-barn-postgres:latest}"
+# Must match docker/postgres/Dockerfile. Pull+tag (not bare buildx build) so the
+# image is always present in the local engine for docker save on CI.
+POSTGRES_BASE="${POSTGRES_BASE:-pgvector/pgvector:pg16}"
 DOCKER_PLATFORM="${DOCKER_PLATFORM:-linux/amd64}"
 export DOCKER_PLATFORM
 OUTPUT_DIR="${OUTPUT_DIR:-dist}"
@@ -30,8 +33,17 @@ mkdir -p "$OUTPUT_DIR"
 echo "Building migrate image (${DOCKER_PLATFORM})..."
 docker build --platform "$DOCKER_PLATFORM" -t "$MIGRATE_IMAGE" -f backend/Dockerfile.migrate backend
 
-echo "Building PostgreSQL image with pgvector (${POSTGRES_IMAGE}, ${DOCKER_PLATFORM})..."
-docker build --platform "$DOCKER_PLATFORM" -t "$POSTGRES_IMAGE" -f docker/postgres/Dockerfile docker/postgres
+echo "Preparing PostgreSQL with pgvector (${POSTGRES_BASE} → ${POSTGRES_IMAGE}, ${DOCKER_PLATFORM})..."
+docker pull --platform "$DOCKER_PLATFORM" "$POSTGRES_BASE"
+docker tag "$POSTGRES_BASE" "$POSTGRES_IMAGE"
+
+echo "Verifying pgvector is inside ${POSTGRES_IMAGE}..."
+docker run --rm --entrypoint sh "$POSTGRES_IMAGE" -c \
+  'test -f /usr/share/postgresql/16/extension/vector.control || test -f /usr/local/share/postgresql/extension/vector.control' \
+  || {
+    echo "ERROR: ${POSTGRES_IMAGE} has no vector.control — refusing to ship a broken Postgres image" >&2
+    exit 1
+  }
 
 # Also tag as dock-pilot-* for backward compatibility
 echo "Tagging barn images with legacy dock-pilot names for backward compat..."
@@ -56,7 +68,7 @@ ls -lh "$BUNDLE"
 
 cat <<EOF
 
-Export ready (${POSTGRES_IMAGE} includes pgvector — no separate Postgres install needed).
+Export ready (${POSTGRES_IMAGE} includes pgvector — verified vector.control).
 Includes both barn-* and dock-pilot-* tags for compatibility.
 
   scp ${BUNDLE} docker-compose.barn.yml .env.barn.example scripts/barn-*.sh user@your-vps:/opt/barn/
