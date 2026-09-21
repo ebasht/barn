@@ -1,15 +1,34 @@
 #!/usr/bin/env bash
-# Recover panel data after a rebrand upgrade that attached a fresh empty barn_pg
-# while the real data stayed on a legacy Docker volume.
+# Recover Postgres after an upgrade that attached an empty volume or dropped
+# published host ports. Data in Docker volumes is NOT deleted by container rm.
 #
 #   sudo bash scripts/recover-pg-volume.sh
+#   sudo bash scripts/recover-pg-volume.sh --port 18081
 #
 set -euo pipefail
 
 ROOT="${BARN_INSTALL_DIR:-${DOCK_PILOT_INSTALL_DIR:-/opt/barn}}"
 cd "$ROOT"
 
-log() { echo "[barn-recover] $*"; }
+EXTRA_PORT=""
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --port)
+      EXTRA_PORT="${2:-}"
+      shift 2
+      ;;
+    --port=*)
+      EXTRA_PORT="${1#*=}"
+      shift
+      ;;
+    *)
+      echo "Unknown arg: $1" >&2
+      exit 1
+      ;;
+  esac
+done
+
+log() { echo "[barn-recover] $*" >&2; }
 die() { echo "[barn-recover] ERROR: $*" >&2; exit 1; }
 
 [[ -f .env ]] || die "no .env in $ROOT"
@@ -20,73 +39,163 @@ set +a
 
 COMPOSE="docker-compose.barn-full.yml"
 [[ -f "$COMPOSE" ]] || COMPOSE="docker-compose.barn.yml"
-[[ -f "$COMPOSE" ]] || die "barn compose file not found in $ROOT"
+[[ -f "$COMPOSE" ]] || COMPOSE="docker-compose.full.yml"
+[[ -f "$COMPOSE" ]] || COMPOSE="docker-compose.dock-pilot.yml"
+[[ -f "$COMPOSE" ]] || die "compose file not found in $ROOT"
 
-log "Docker volumes matching postgres/barn/dock:"
-docker volume ls --format '{{.Name}}' | grep -E 'pg|postgres|barn|dock' || true
+PG_USER="${POSTGRES_USER:-barn}"
+PG_DB="${POSTGRES_DB:-barn}"
+PG_HOST_PORT="${POSTGRES_HOST_PORT:-5433}"
+IMAGE="${POSTGRES_IMAGE:-barn-postgres:latest}"
 
-LEGACY=""
-for v in \
-  dock-pilot_dock_pilot_pg \
-  dock_pilot_pg \
-  dockpilot-postgres-data \
-  barn-postgres-data
-do
-  if docker volume inspect "$v" >/dev/null 2>&1; then
-    LEGACY="$v"
-    break
+log "Listing candidate Postgres volumes..."
+CANDIDATES=()
+while IFS= read -r v; do
+  [[ -n "$v" ]] && CANDIDATES+=("$v")
+done < <(docker volume ls --format '{{.Name}}' | grep -E 'pg|postgres|barn|dock' || true)
+if ((${#CANDIDATES[@]} == 0)); then
+  die "no postgres-like volumes found"
+fi
+printf '  %s\n' "${CANDIDATES[@]}" >&2
+
+probe_image() {
+  if docker image inspect "$IMAGE" >/dev/null 2>&1; then
+    echo "$IMAGE"
+    return
+  fi
+  if docker image inspect pgvector/pgvector:pg16 >/dev/null 2>&1; then
+    echo "pgvector/pgvector:pg16"
+    return
+  fi
+  if docker image inspect postgres:16-alpine >/dev/null 2>&1; then
+    echo "postgres:16-alpine"
+    return
+  fi
+  echo "$IMAGE"
+}
+
+PROBE_IMAGE="$(probe_image)"
+
+# Prints: "<score> <volume>"
+pick_volume() {
+  local vol="$1"
+  local tmp="barn-pg-probe-$$"
+  docker rm -f "$tmp" >/dev/null 2>&1 || true
+  if ! docker run -d --name "$tmp" \
+    -v "${vol}:/var/lib/postgresql/data" \
+    "$PROBE_IMAGE" >/dev/null 2>&1; then
+    return 1
+  fi
+  local ok=0
+  for _ in $(seq 1 30); do
+    if docker exec "$tmp" pg_isready >/dev/null 2>&1; then
+      ok=1
+      break
+    fi
+    sleep 1
+  done
+  if [[ "$ok" -ne 1 ]]; then
+    docker rm -f "$tmp" >/dev/null 2>&1 || true
+    return 1
+  fi
+
+  local dbs=0 sites=0 score=0 s u dbname
+  dbs="$(docker exec "$tmp" psql -U postgres -d postgres -tAc \
+    "SELECT count(*) FROM pg_database WHERE datistemplate = false" 2>/dev/null || echo 0)"
+  [[ "$dbs" =~ ^[0-9]+$ ]] || dbs=0
+
+  for u in postgres "$PG_USER" barn dockpilot; do
+    [[ -z "$u" ]] && continue
+    for dbname in postgres "$PG_DB" barn dockpilot; do
+      [[ -z "$dbname" ]] && continue
+      s="$(docker exec "$tmp" psql -U "$u" -d "$dbname" -tAc \
+        "SELECT count(*) FROM sites" 2>/dev/null || echo "")"
+      if [[ "$s" =~ ^[0-9]+$ ]] && ((s > sites)); then
+        sites=$s
+      fi
+    done
+  done
+
+  score=$((dbs * 10 + sites))
+  log "  volume ${vol}: databases=${dbs} sites=${sites} score=${score}"
+  docker rm -f "$tmp" >/dev/null 2>&1 || true
+  echo "${score} ${vol}"
+}
+
+BEST_SCORE=-1
+BEST_VOL=""
+for v in "${CANDIDATES[@]}"; do
+  result="$(pick_volume "$v" || true)"
+  [[ -z "$result" ]] && continue
+  score="${result%% *}"
+  vol="${result#* }"
+  if [[ "$score" =~ ^[0-9]+$ ]] && ((score > BEST_SCORE)); then
+    BEST_SCORE="$score"
+    BEST_VOL="$vol"
   fi
 done
-[[ -n "$LEGACY" ]] || die "no legacy Postgres volume found — list volumes above and tell support which one has data"
 
-log "Will attach volume: $LEGACY"
-OVERRIDE="${ROOT}/docker-compose.pg-volume.override.yml"
+[[ -n "$BEST_VOL" ]] || die "could not probe any volume — check docker images and volume list"
+if ((BEST_SCORE <= 0)); then
+  log "WARN: best volume score is 0 — attaching ${BEST_VOL} anyway"
+fi
+
+log "Selected volume: ${BEST_VOL} (score ${BEST_SCORE})"
+
+if [[ -z "$EXTRA_PORT" ]]; then
+  # Default to the common managed allocate-port used by panel Deploy.
+  EXTRA_PORT="18081"
+  log "Publishing managed app port :${EXTRA_PORT} (override with --port)"
+fi
+
+OVERRIDE="${ROOT}/docker-compose.barn-pgdata.yml"
 cat >"$OVERRIDE" <<EOF
-# Generated by recover-pg-volume.sh
+# Generated by recover-pg-volume.sh — keeps real PGDATA + app host port
+services:
+  postgres:
+    volumes:
+      - barn_pgdata_live:/var/lib/postgresql/data
+    ports:
+      - "127.0.0.1:${PG_HOST_PORT}:5432"
+      - "0.0.0.0:${EXTRA_PORT}:5432"
 volumes:
-  barn_pg:
+  barn_pgdata_live:
     external: true
-    name: ${LEGACY}
+    name: ${BEST_VOL}
 EOF
 
 log "Stopping current postgres/api..."
 docker compose -f "$COMPOSE" stop postgres api 2>/dev/null || true
-docker rm -f barn-postgres dock-pilot-postgres dockpilot-postgres 2>/dev/null || true
+docker rm -f barn-postgres dock-pilot-postgres dockpilot-postgres barn-pg-probe-$$ 2>/dev/null || true
 
-log "Starting postgres on legacy volume..."
+log "Starting postgres on recovered volume..."
 docker compose -f "$COMPOSE" -f "$OVERRIDE" up -d postgres
 
 log "Waiting for postgres..."
-for i in $(seq 1 30); do
-  if docker compose -f "$COMPOSE" -f "$OVERRIDE" exec -T postgres \
-    pg_isready -U "${POSTGRES_USER:-postgres}" >/dev/null 2>&1; then
+ready=0
+for _ in $(seq 1 45); do
+  if docker compose -f "$COMPOSE" -f "$OVERRIDE" exec -T postgres pg_isready >/dev/null 2>&1; then
+    ready=1
     break
   fi
   sleep 1
 done
+[[ "$ready" -eq 1 ]] || die "postgres did not become ready"
 
-log "Databases on recovered volume:"
+log "Databases:"
 docker compose -f "$COMPOSE" -f "$OVERRIDE" exec -T postgres \
-  psql -U "${POSTGRES_USER:-postgres}" -d postgres -c \
-  "SELECT datname FROM pg_database WHERE datistemplate = false ORDER BY 1" || \
+  psql -U "$PG_USER" -d postgres -c \
+  "SELECT datname FROM pg_database WHERE datistemplate = false ORDER BY 1" 2>/dev/null || \
 docker compose -f "$COMPOSE" -f "$OVERRIDE" exec -T postgres \
   psql -U postgres -d postgres -c \
   "SELECT datname FROM pg_database WHERE datistemplate = false ORDER BY 1" || true
 
-log "Site row counts (best-effort):"
-for db in postgres barn dockpilot "${POSTGRES_DB:-}"; do
-  [[ -z "$db" ]] && continue
-  n="$(docker compose -f "$COMPOSE" -f "$OVERRIDE" exec -T postgres \
-    psql -U "${POSTGRES_USER:-postgres}" -d "$db" -tAc 'SELECT count(*) FROM sites' 2>/dev/null || echo "")"
-  [[ -n "$n" ]] && log "  $db.sites = $n"
-done
-
-log "Running migrations on recovered volume..."
+log "Running migrations..."
 docker compose -f "$COMPOSE" -f "$OVERRIDE" run --rm -T migrate || \
   log "WARN: migrate failed — check POSTGRES_USER/DB in .env match the volume"
 
 log "Recreating api + frontend..."
 docker compose -f "$COMPOSE" -f "$OVERRIDE" up -d --force-recreate api frontend
 
-log "Done. Open the panel — settings/sites should be back."
-log "Override kept at $OVERRIDE (upgrade will reuse it once fixed)."
+log "Done. Volume ${BEST_VOL} attached; override: $OVERRIDE"
+log "Panel: 127.0.0.1:${PG_HOST_PORT}  Apps: 0.0.0.0:${EXTRA_PORT}"
