@@ -21,7 +21,7 @@ export default function DatabasesPage() {
   const [creating, setCreating] = useState(false);
 
   const [name, setName] = useState("Postgres");
-  const [image, setImage] = useState("pgvector/pgvector:pg16");
+  const [image, setImage] = useState("barn-postgres:latest");
   const [adminUser, setAdminUser] = useState("postgres");
   const [adminPassword, setAdminPassword] = useState("");
   const [hostPort, setHostPort] = useState("");

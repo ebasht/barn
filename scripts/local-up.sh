@@ -29,6 +29,10 @@ if [[ ! -f frontend/.env.local ]]; then
 fi
 
 echo "Starting PostgreSQL in Docker..."
+if ! docker image inspect barn-postgres:latest >/dev/null 2>&1; then
+  echo "Building barn-postgres:latest (Postgres 16 + pgvector)..."
+  docker build -t barn-postgres:latest -f docker/postgres/Dockerfile docker/postgres
+fi
 docker compose up -d postgres
 
 "$ROOT/scripts/wait-for-postgres.sh"

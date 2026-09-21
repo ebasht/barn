@@ -182,7 +182,7 @@ func (s *Service) DeployInstanceWithLog(ctx context.Context, id uuid.UUID, logFn
 	})
 	log("info", "pulling image "+inst.Image)
 
-	if err := s.docker.Pull(ctx, inst.Image); err != nil {
+	if err := s.ensureManagedImage(ctx, inst.Image); err != nil {
 		log("error", "pull failed: "+err.Error())
 		_, _ = s.queries.UpdatePgInstanceStatus(ctx, db.UpdatePgInstanceStatusParams{
 			ID: id, Status: "error", Message: err.Error(),

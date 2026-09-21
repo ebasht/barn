@@ -12,6 +12,7 @@
 - nginx панели: `scripts/configure-panel-nginx.sh`, `install/nginx-panel*.template`.
   Сервисы агента: `install/barn-agent.service`, `dockpilot-agent.service`.
 - Сборка: `scripts/docker-build.sh`, `docker-export.sh`, `make-release.sh`;
+  `docker/postgres/Dockerfile` — образ `barn-postgres` (Postgres 16 + pgvector).
   `docker-compose.build.yml`, Dockerfiles в backend/frontend.
 - `.github/workflows/release.yml`: push тега `v*` собирает и публикует релиз.
   Assets: `barn-*.tar.gz` и legacy `dock-pilot-*.tar.gz` (образы внутри бандла).
