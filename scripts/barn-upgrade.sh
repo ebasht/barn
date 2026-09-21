@@ -281,7 +281,8 @@ compose() {
   docker compose "${args[@]}" "$@"
 }
 
-# Score a Docker volume by database/site counts. Prints "<score> <volume>".
+# Score a Docker volume. Prefer volumes where .env password works (panel data),
+# then by database/site counts. Prints "<score> <volume>".
 score_pg_volume() {
   local vol="$1"
   local tmp="barn-pg-probe-$$"
@@ -308,7 +309,7 @@ score_pg_volume() {
     docker rm -f "$tmp" >/dev/null 2>&1 || true
     return 1
   fi
-  local dbs=0 sites=0 s u dbname
+  local dbs=0 sites=0 s u dbname auth_bonus=0
   dbs="$(docker exec "$tmp" psql -U postgres -d postgres -tAc \
     "SELECT count(*) FROM pg_database WHERE datistemplate = false" 2>/dev/null || echo 0)"
   [[ "$dbs" =~ ^[0-9]+$ ]] || dbs=0
@@ -323,8 +324,39 @@ score_pg_volume() {
       fi
     done
   done
+  # Huge bonus if panel .env credentials work over TCP (this is the real panel volume).
+  if [[ -n "${POSTGRES_PASSWORD:-}" && -n "${POSTGRES_USER:-}" ]]; then
+    if docker exec -e PGPASSWORD="$POSTGRES_PASSWORD" "$tmp" \
+      psql -h 127.0.0.1 -U "$POSTGRES_USER" -d "${POSTGRES_DB:-postgres}" -tAc 'SELECT 1' >/dev/null 2>&1; then
+      auth_bonus=100000
+    fi
+  fi
   docker rm -f "$tmp" >/dev/null 2>&1 || true
-  echo "$((dbs * 10 + sites)) ${vol}"
+  echo "$((auth_bonus + dbs * 10 + sites)) ${vol}"
+}
+
+# Existing PGDATA ignores POSTGRES_PASSWORD from compose. Align role password with .env
+# via local socket (trust) so migrate/API can connect.
+sync_panel_db_password() {
+  local user="${POSTGRES_USER:-dockpilot}"
+  local pass="${POSTGRES_PASSWORD:-}"
+  [[ -n "$pass" && -n "$user" ]] || return 0
+  local esc="${pass//\'/\'\'}"
+  local sql="ALTER USER \"${user}\" WITH PASSWORD '${esc}';"
+  if compose exec -T postgres psql -U "$user" -d postgres -v ON_ERROR_STOP=1 -c "$sql" >/dev/null 2>&1; then
+    log "Synced DB role ${user} password from .env"
+    return 0
+  fi
+  if compose exec -T postgres psql -U postgres -d postgres -v ON_ERROR_STOP=1 -c "$sql" >/dev/null 2>&1; then
+    log "Synced DB role ${user} password from .env (as postgres)"
+    return 0
+  fi
+  if compose exec -T -u postgres postgres psql -d postgres -v ON_ERROR_STOP=1 -c "$sql" >/dev/null 2>&1; then
+    log "Synced DB role ${user} password from .env (OS user)"
+    return 0
+  fi
+  log "WARN: could not sync DB password from .env via local socket"
+  return 0
 }
 
 log "Selecting Postgres data volume (keeps real data, not an empty one)..."
@@ -413,6 +445,9 @@ if ! docker exec "$PG_CTR" sh -c \
   die "running postgres image has no pgvector (vector.control missing) — release image is wrong or not loaded"
 fi
 log "pgvector OK"
+
+log "Aligning panel DB password with .env..."
+sync_panel_db_password
 
 log "Databases on attached volume:"
 compose exec -T postgres psql -U "${POSTGRES_USER:-postgres}" -d postgres -c \
