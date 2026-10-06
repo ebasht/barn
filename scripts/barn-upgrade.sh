@@ -287,7 +287,8 @@ score_pg_volume() {
   local vol="$1"
   local tmp="barn-pg-probe-$$"
   local img="${POSTGRES_IMAGE:-barn-postgres:latest}"
-  docker rm -f "$tmp" >/dev/null 2>&1 || true
+  docker stop --time 30 "$tmp" >/dev/null 2>&1 || true
+  docker rm "$tmp" >/dev/null 2>&1 || true
   if ! docker image inspect "$img" >/dev/null 2>&1; then
     img=pgvector/pgvector:pg16
   fi
@@ -306,7 +307,8 @@ score_pg_volume() {
     sleep 1
   done
   if [[ "$ok" -ne 1 ]]; then
-    docker rm -f "$tmp" >/dev/null 2>&1 || true
+    docker stop --time 30 "$tmp" >/dev/null 2>&1 || true
+    docker rm "$tmp" >/dev/null 2>&1 || true
     return 1
   fi
   local dbs=0 sites=0 s u dbname auth_bonus=0
@@ -331,7 +333,10 @@ score_pg_volume() {
       auth_bonus=100000
     fi
   fi
-  docker rm -f "$tmp" >/dev/null 2>&1 || true
+  # PostgreSQL must checkpoint and remove postmaster.pid cleanly. Force-removing
+  # a probe can leave the selected PGDATA requiring crash recovery, or worse.
+  docker stop --time 30 "$tmp" >/dev/null 2>&1 || true
+  docker rm "$tmp" >/dev/null 2>&1 || true
   echo "$((auth_bonus + dbs * 10 + sites)) ${vol}"
 }
 
@@ -398,6 +403,15 @@ for c in barn-postgres dock-pilot-postgres dockpilot-postgres; do
       PG_EXTRA_PORTS+=("$hp")
     done < <(docker inspect "$c" --format '{{range $p, $conf := .HostConfig.PortBindings}}{{if eq $p "5432/tcp"}}{{range $conf}}{{println .HostPort}}{{end}}{{end}}{{end}}' 2>/dev/null || true)
     break
+  fi
+done
+
+# Never mount a PGDATA volume into a probe while the real postgres container is
+# still running. We already captured its volume and published ports above.
+for c in barn-postgres dock-pilot-postgres dockpilot-postgres; do
+  if docker inspect "$c" >/dev/null 2>&1; then
+    log "Stopping ${c} cleanly before probing PostgreSQL volumes..."
+    docker stop --time 30 "$c" >/dev/null 2>&1 || true
   fi
 done
 
@@ -468,7 +482,13 @@ for _ in $(seq 1 60); do
   fi
   sleep 2
 done
-[[ "$PG_OK" -eq 1 ]] || die "postgres did not become ready after recreate"
+if [[ "$PG_OK" -ne 1 ]]; then
+  log "Postgres container state:"
+  compose ps postgres || true
+  log "Postgres logs (last 100 lines):"
+  compose logs --no-color --tail=100 postgres || true
+  die "postgres did not become ready after recreate"
+fi
 
 log "Verifying pgvector in running postgres..."
 PG_CTR="$(compose ps -q postgres 2>/dev/null || true)"
