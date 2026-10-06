@@ -1,5 +1,6 @@
 "use client";
 
+import { Fragment } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { ScopeHeading } from "@/components/ScopeHeading";
@@ -17,11 +18,20 @@ export function BarnScopeBoundary({ children }: { children: React.ReactNode }) {
     pathname === "/sites/new" ||
     pathname.startsWith("/sites/");
   const canManagePanel = activeBarn?.kind === "local" || activeBarn?.kind === "barn";
+  // Remount page content when the active Barn changes so lists/forms reload
+  // against the new remote API target (same route, only ?barn= changes).
+  const contentKey = !isMasterMode
+    ? "standalone"
+    : isGlobalScope
+      ? "all"
+      : activeBarn?.id ?? "pending";
 
-  if (!isMasterMode || !isLocalOnly || canManagePanel) return <>{children}</>;
+  if (!isMasterMode || !isLocalOnly || canManagePanel) {
+    return <Fragment key={contentKey}>{children}</Fragment>;
+  }
 
   return (
-    <div className="scope-limited-page">
+    <div className="scope-limited-page" key={contentKey}>
       <ScopeHeading page={t("master.localAction")} />
       <div className="card scope-limitation-card">
         <div className="scope-limitation-icon" aria-hidden>!</div>

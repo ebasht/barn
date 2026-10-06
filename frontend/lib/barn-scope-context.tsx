@@ -9,7 +9,7 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { api } from "@/lib/api";
 import {
   BARN_SCOPE_PARAM,
@@ -53,6 +53,8 @@ function browserScope(): BarnScope {
 export function BarnScopeProvider({ children }: { children: ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const barnParam = searchParams.get(BARN_SCOPE_PARAM);
   const { settings, isMaster, loading: modeLoading } = useServersMode();
   const [currentScope, setCurrentScope] = useState<BarnScope>(GLOBAL_BARN_SCOPE);
   const [nodes, setNodes] = useState<ServerNode[]>([]);
@@ -77,24 +79,19 @@ export function BarnScopeProvider({ children }: { children: ReactNode }) {
   }, [isMaster]);
 
   useEffect(() => {
-    const sync = () => {
-      const scope = browserScope();
-      setCurrentScope(scope);
-      const params = new URLSearchParams(window.location.search);
-      if (scope.type === "global" && params.has(BARN_SCOPE_PARAM)) {
-        window.sessionStorage.removeItem(BARN_SCOPE_STORAGE);
-      }
-      if (scope.type === "node" && params.has(BARN_SCOPE_PARAM)) {
-        window.sessionStorage.setItem(BARN_SCOPE_STORAGE, scope.nodeId);
-      }
-      if (scope.type === "node" && !params.has(BARN_SCOPE_PARAM)) {
-        router.replace(withBarnScope(`${pathname || "/"}${window.location.search}`, scope));
-      }
-    };
-    sync();
-    window.addEventListener("popstate", sync);
-    return () => window.removeEventListener("popstate", sync);
-  }, [pathname, router]);
+    const scope = browserScope();
+    setCurrentScope(scope);
+    const params = new URLSearchParams(window.location.search);
+    if (scope.type === "global" && params.has(BARN_SCOPE_PARAM)) {
+      window.sessionStorage.removeItem(BARN_SCOPE_STORAGE);
+    }
+    if (scope.type === "node" && params.has(BARN_SCOPE_PARAM)) {
+      window.sessionStorage.setItem(BARN_SCOPE_STORAGE, scope.nodeId);
+    }
+    if (scope.type === "node" && !params.has(BARN_SCOPE_PARAM)) {
+      router.replace(withBarnScope(`${pathname || "/"}${window.location.search}`, scope));
+    }
+  }, [barnParam, pathname, router]);
 
   useEffect(() => {
     if (modeLoading) return;

@@ -64,7 +64,7 @@ export default function SitesPage() {
     );
   }
 
-  return <LocalSitesPage />;
+  return <LocalSitesPage key={activeBarn?.id ?? "local"} />;
 }
 
 function LocalSitesPage() {

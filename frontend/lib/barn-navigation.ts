@@ -54,16 +54,12 @@ export function resolveBarnNavigation(
   }
 
   if (target.kind === "barn") {
-    // Full panel management via Master→node API proxy. Master control-plane
-    // settings stay on the Master (not proxied), so omit servers/settings here.
-    return [
-      LOCAL_NAV[0],
-      SERVERS_NAV,
-      ...LOCAL_NAV.slice(1).filter((item) => item.match !== "servers-settings"),
-    ];
+    // Remote panel via Master→node proxy: panel pages only.
+    // Servers list is a Master control-plane view (All Barns / local Master).
+    return LOCAL_NAV.filter((item) => item.match !== "servers-settings");
   }
 
-  // Monitoring agent: overview + servers list only.
+  // Monitoring agent: node overview only (no fleet Servers list).
   return [
     {
       href: `/servers/${target.id}`,
@@ -71,6 +67,5 @@ export function resolveBarnNavigation(
       labelKey: "nav.overview",
       match: `server-${target.id}`,
     },
-    SERVERS_NAV,
   ];
 }

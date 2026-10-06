@@ -91,12 +91,20 @@ test("navigation follows mode and target capability", () => {
   );
   assert.equal(
     resolveBarnNavigation(true, { ...local, id: "remote", kind: "barn", isMaster: false }).some(
-      (item) => item.match === "servers-settings",
+      (item) => item.match === "servers" || item.match === "servers-settings",
     ),
     false,
   );
   assert.equal(
-    resolveBarnNavigation(true, { ...local, id: "remote", kind: "agent", isMaster: false }).some((item) => item.href === "/databases"),
+    resolveBarnNavigation(true, local).some((item) => item.match === "servers"),
+    true,
+  );
+  assert.equal(
+    resolveBarnNavigation(true, null).some((item) => item.match === "servers"),
+    true,
+  );
+  assert.equal(
+    resolveBarnNavigation(true, { ...local, id: "remote", kind: "agent", isMaster: false }).some((item) => item.match === "servers"),
     false,
   );
 });
