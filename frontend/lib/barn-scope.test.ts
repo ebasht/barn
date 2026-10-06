@@ -54,6 +54,31 @@ test("local target has one canonical adapter", () => {
   });
 });
 
+test("switcher targets exclude monitoring agents", () => {
+  const agent: ServerNode = {
+    ...localNode,
+    id: "agent-id",
+    node_uid: "agent-uid",
+    name: "skystark-vpn",
+    role: "agent",
+    connection_type: "agent",
+  };
+  const barn: ServerNode = {
+    ...localNode,
+    id: "barn-id",
+    node_uid: "barn-uid",
+    name: "second panel",
+    role: "node",
+    connection_type: "barn",
+  };
+  const targets = normalizeBarnTargets(settings, [localNode, agent, barn]);
+  assert.deepEqual(
+    targets.map((t) => t.id),
+    ["local-id", "barn-id"],
+  );
+  assert.equal(targets.every((t) => t.kind !== "agent"), true);
+});
+
 test("navigation follows mode and target capability", () => {
   assert.equal(resolveBarnNavigation(true, null)[0]?.href, "/overview");
   const local = normalizeBarnTargets(settings, [localNode])[0];

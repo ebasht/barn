@@ -44,21 +44,18 @@ export function normalizeBarnTargets(
   settings: ServersSettings,
   nodes: ServerNode[],
 ): BarnTarget[] {
-  return nodes.map((node) => ({
-    id: node.id,
-    name:
-      node.connection_type === "local"
-        ? settings.node_name || node.name || "Master"
-        : node.name,
-    kind:
-      node.connection_type === "local"
-        ? "local"
-        : node.connection_type === "agent"
-          ? "agent"
-          : "barn",
-    status: node.status,
-    isMaster: node.connection_type === "local" || node.role === "master",
-    baseUrl: node.base_url || undefined,
-    capabilities: node.capabilities ?? [],
-  }));
+  return nodes
+    .filter((node) => node.connection_type !== "agent")
+    .map((node) => ({
+      id: node.id,
+      name:
+        node.connection_type === "local"
+          ? settings.node_name || node.name || "Master"
+          : node.name,
+      kind: node.connection_type === "local" ? "local" : "barn",
+      status: node.status,
+      isMaster: node.connection_type === "local" || node.role === "master",
+      baseUrl: node.base_url || undefined,
+      capabilities: node.capabilities ?? [],
+    }));
 }
