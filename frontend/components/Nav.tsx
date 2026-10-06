@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { BarnSwitcher } from "@/components/BarnSwitcher";
 import { BrandLogo } from "@/components/BrandLogo";
 import { useLogout } from "@/components/AuthGate";
 import { resolveBarnNavigation, type BarnNavIcon } from "@/lib/barn-navigation";
@@ -85,6 +86,7 @@ export function Nav() {
           <span className="nav-drawer-title">{t("nav.menu")}</span>
           <button type="button" className="btn btn-secondary nav-drawer-close" onClick={close}>{t("nav.closeMenu")}</button>
         </div>
+        {isMasterMode && <BarnSwitcher onSelect={close} />}
         {renderedLinks(false)}
         {renderedLinks(true)}
         <div className="nav-actions">

@@ -20,7 +20,7 @@ One Barn instance can run as **standalone** (default), **master**, or **managed_
 1. Open **Barn settings** (`/servers/settings`) or enable via API:
    - `PUT /api/servers/settings` with `{"enable_master": true, "node_name": "…", "public_url": "https://…"}`
 2. Public URL is used for pairing and agent registration.
-3. `/` redirects to `/overview` on Master and to `/sites` in other modes. The Master shell is labelled **Главный Амбар / Main Barn**. The local Master appears in the common server list as a highlighted node with the **MASTER** badge.
+3. `/` redirects to `/overview` on Master and to `/sites` in other modes. The Master shell is labelled **Главный Амбар / Main Barn** and includes the Barn scope switcher. The local Master also appears in the common server list as a highlighted node with the **MASTER** badge.
 
 ## Master scopes (Phase 1)
 

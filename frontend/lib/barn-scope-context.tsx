@@ -26,11 +26,14 @@ import type { ServerNode } from "@/lib/types";
 type BarnScopeContextValue = {
   currentScope: BarnScope;
   activeBarn: BarnTarget | null;
+  targets: BarnTarget[];
   nodes: ServerNode[];
   isGlobalScope: boolean;
   isMasterMode: boolean;
   loadingTargets: boolean;
   scopeHref: (href: string) => string;
+  selectGlobalScope: () => void;
+  selectBarn: (target: BarnTarget) => void;
   refreshTargets: () => Promise<void>;
 };
 
@@ -128,18 +131,35 @@ export function BarnScopeProvider({ children }: { children: ReactNode }) {
     [currentScope, isMaster],
   );
 
+  const selectGlobalScope = useCallback(() => {
+    setCurrentScope(GLOBAL_BARN_SCOPE);
+    window.sessionStorage.removeItem(BARN_SCOPE_STORAGE);
+    router.push(withBarnScope("/overview", GLOBAL_BARN_SCOPE));
+  }, [router]);
+
+  const selectBarn = useCallback((target: BarnTarget) => {
+    const scope: BarnScope = { type: "node", nodeId: target.id };
+    setCurrentScope(scope);
+    window.sessionStorage.setItem(BARN_SCOPE_STORAGE, target.id);
+    const home = target.kind === "local" ? "/sites" : `/servers/${target.id}`;
+    router.push(withBarnScope(home, scope));
+  }, [router]);
+
   const value = useMemo<BarnScopeContextValue>(
     () => ({
       currentScope: isMaster ? currentScope : GLOBAL_BARN_SCOPE,
       activeBarn: isMaster ? activeBarn : null,
+      targets,
       nodes,
       isGlobalScope: !isMaster || currentScope.type === "global",
       isMasterMode: isMaster,
       loadingTargets,
       scopeHref,
+      selectGlobalScope,
+      selectBarn,
       refreshTargets,
     }),
-    [activeBarn, currentScope, isMaster, loadingTargets, nodes, refreshTargets, scopeHref],
+    [activeBarn, currentScope, isMaster, loadingTargets, nodes, refreshTargets, scopeHref, selectBarn, selectGlobalScope, targets],
   );
 
   return <BarnScopeContext.Provider value={value}>{children}</BarnScopeContext.Provider>;
