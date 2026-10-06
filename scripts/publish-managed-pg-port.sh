@@ -1,9 +1,10 @@
 #!/usr/bin/env bash
-# Force-publish an external host port on the panel Postgres container.
-# Does NOT rely on compose port merging (which often leaves only 127.0.0.1:5433).
+# Force-publish external host port(s) on the panel Postgres container.
+# Does NOT rely on compose port merging (VPS compose often leaves only 127.0.0.1:5433).
 #
 #   sudo bash scripts/publish-managed-pg-port.sh
 #   sudo bash scripts/publish-managed-pg-port.sh --port 18081
+#   sudo bash scripts/publish-managed-pg-port.sh --port 18081 --port 18082
 #
 set -euo pipefail
 
@@ -19,11 +20,11 @@ if [[ -z "$ROOT" ]]; then
 fi
 cd "$ROOT"
 
-EXTRA_PORT="18081"
+EXTRA_PORTS=()
 while [[ $# -gt 0 ]]; do
   case "$1" in
-    --port) EXTRA_PORT="${2:-}"; shift 2 ;;
-    --port=*) EXTRA_PORT="${1#*=}"; shift ;;
+    --port) EXTRA_PORTS+=("${2:-}"); shift 2 ;;
+    --port=*) EXTRA_PORTS+=("${1#*=}"); shift ;;
     *) echo "Unknown arg: $1" >&2; exit 1 ;;
   esac
 done
@@ -31,7 +32,6 @@ done
 log() { echo "[barn-publish-pg] $*" >&2; }
 die() { echo "[barn-publish-pg] ERROR: $*" >&2; exit 1; }
 
-[[ "$EXTRA_PORT" =~ ^[0-9]+$ ]] || die "invalid --port"
 [[ -f .env ]] || die "no .env in $ROOT"
 set -a
 # shellcheck disable=SC1091
@@ -39,7 +39,8 @@ source ./.env
 set +a
 
 PG_HOST_PORT="${POSTGRES_HOST_PORT:-5433}"
-[[ "$EXTRA_PORT" != "$PG_HOST_PORT" ]] || die "managed port must differ from panel port ${PG_HOST_PORT}"
+PG_USER="${POSTGRES_USER:-barn}"
+PG_DB="${POSTGRES_DB:-barn}"
 
 CTR=""
 for c in dock-pilot-postgres barn-postgres dockpilot-postgres; do
@@ -50,14 +51,51 @@ for c in dock-pilot-postgres barn-postgres dockpilot-postgres; do
 done
 [[ -n "$CTR" ]] || die "no panel postgres container found"
 
+# Discover managed ports from panel DB when none were passed.
+if ((${#EXTRA_PORTS[@]} == 0)); then
+  rows="$(docker exec "$CTR" psql -U "$PG_USER" -d "$PG_DB" -Atc \
+    "SELECT DISTINCT host_port FROM pdb_instances WHERE host_port IS NOT NULL AND host_port > 0 ORDER BY 1" 2>/dev/null || true)"
+  if [[ -z "$rows" ]]; then
+    rows="$(docker exec "$CTR" psql -U postgres -d "$PG_DB" -Atc \
+      "SELECT DISTINCT host_port FROM pdb_instances WHERE host_port IS NOT NULL AND host_port > 0 ORDER BY 1" 2>/dev/null || true)"
+  fi
+  while IFS= read -r port; do
+    port="$(echo "$port" | tr -d '[:space:]')"
+    [[ "$port" =~ ^[0-9]+$ ]] || continue
+    EXTRA_PORTS+=("$port")
+  done <<< "$rows"
+fi
+if ((${#EXTRA_PORTS[@]} == 0)); then
+  EXTRA_PORTS+=(18081)
+  log "No pdb_instances host_port — defaulting to 18081"
+fi
+
+mapfile -t EXTRA_PORTS < <(printf '%s\n' "${EXTRA_PORTS[@]}" | awk -v panel="$PG_HOST_PORT" '
+  NF && $0 != panel && !seen[$0]++ { print }
+')
+((${#EXTRA_PORTS[@]} > 0)) || die "no managed ports to publish"
+
+# Skip recreate if every desired port is already published on 0.0.0.0 (or *)
+published="$(docker port "$CTR" 5432/tcp 2>/dev/null || true)"
+missing=0
+for hp in "${EXTRA_PORTS[@]}"; do
+  if ! echo "$published" | grep -Eq "0\\.0\\.0\\.0:${hp}\\b|:::${hp}\\b"; then
+    missing=1
+    break
+  fi
+done
+if echo "$published" | grep -Eq "127\\.0\\.0\\.1:${PG_HOST_PORT}\\b" && [[ "$missing" -eq 0 ]]; then
+  log "Ports already published on ${CTR}:"
+  docker port "$CTR"
+  exit 0
+fi
+
 IMG="$(docker inspect "$CTR" --format '{{.Config.Image}}')"
 VOL="$(docker inspect "$CTR" --format '{{range .Mounts}}{{if eq .Destination "/var/lib/postgresql/data"}}{{.Name}}{{end}}{{end}}')"
 [[ -n "$VOL" ]] || die "could not find PGDATA volume on $CTR"
 RESTART="$(docker inspect "$CTR" --format '{{.HostConfig.RestartPolicy.Name}}')"
 [[ -n "$RESTART" ]] || RESTART="unless-stopped"
 
-# Preserve env from the running container (user/password/db already baked into PGDATA,
-# but POSTGRES_* must stay consistent for tooling).
 ENV_ARGS=()
 while IFS= read -r line; do
   [[ -n "$line" ]] || continue
@@ -65,16 +103,22 @@ while IFS= read -r line; do
     POSTGRES_*|PGDATA=*) ENV_ARGS+=(-e "$line") ;;
   esac
 done < <(docker inspect "$CTR" --format '{{range .Config.Env}}{{println .}}{{end}}')
+# Ensure essentials from .env if container env was empty.
+if ((${#ENV_ARGS[@]} == 0)); then
+  ENV_ARGS+=(-e "POSTGRES_USER=${POSTGRES_USER:-barn}")
+  ENV_ARGS+=(-e "POSTGRES_PASSWORD=${POSTGRES_PASSWORD:?POSTGRES_PASSWORD required}")
+  ENV_ARGS+=(-e "POSTGRES_DB=${POSTGRES_DB:-barn}")
+fi
 
 log "Container: $CTR"
 log "Image:     $IMG"
 log "Volume:    $VOL"
-log "Ports:     127.0.0.1:${PG_HOST_PORT}->5432  and  0.0.0.0:${EXTRA_PORT}->5432"
+log "Ports:     127.0.0.1:${PG_HOST_PORT}->5432 + 0.0.0.0:${EXTRA_PORTS[*]}->5432"
 
-# Persist for future compose ups (explicit !override so merge cannot drop 18081).
 COMPOSE="docker-compose.full.yml"
 COMPOSE_P=""
-if docker inspect dock-pilot-postgres >/dev/null 2>&1 || [[ "$CTR" == dock-pilot-postgres ]]; then
+PG_COMPOSE_VOL="barn_pg"
+if [[ "$CTR" == dock-pilot-postgres ]] || docker inspect dock-pilot-postgres >/dev/null 2>&1; then
   [[ -f "$COMPOSE" ]] || COMPOSE="docker-compose.dock-pilot.yml"
   COMPOSE_P="dock-pilot"
   PG_COMPOSE_VOL="dock_pilot_pg"
@@ -82,36 +126,39 @@ else
   COMPOSE="docker-compose.barn-full.yml"
   [[ -f "$COMPOSE" ]] || COMPOSE="docker-compose.barn.yml"
   [[ -f "$COMPOSE" ]] || COMPOSE="docker-compose.full.yml"
-  PG_COMPOSE_VOL="barn_pg"
 fi
+
 OVERRIDE="${ROOT}/docker-compose.barn-pgdata.yml"
-cat >"$OVERRIDE" <<EOF
-# Generated by publish-managed-pg-port.sh — replace ports entirely (!override)
-services:
-  postgres:
-    ports: !override
-      - "127.0.0.1:${PG_HOST_PORT}:5432"
-      - "0.0.0.0:${EXTRA_PORT}:5432"
-volumes:
-  ${PG_COMPOSE_VOL}:
-    external: true
-    name: ${VOL}
-EOF
+{
+  echo "# Generated by publish-managed-pg-port.sh — volume remap + desired ports (informational)."
+  echo "# Actual publish is done via docker run; do not trust compose merge for 0.0.0.0 ports."
+  echo "services:"
+  echo "  postgres:"
+  echo "    ports:"
+  echo "      - \"127.0.0.1:${PG_HOST_PORT}:5432\""
+  for hp in "${EXTRA_PORTS[@]}"; do
+    echo "      - \"0.0.0.0:${hp}:5432\""
+  done
+  echo "volumes:"
+  echo "  ${PG_COMPOSE_VOL}:"
+  echo "    external: true"
+  echo "    name: ${VOL}"
+} >"$OVERRIDE"
 log "Wrote $OVERRIDE"
 
-log "Recreating ${CTR} with docker run (bypasses compose merge)..."
+log "Recreating ${CTR} with docker run..."
 docker stop --time 30 "$CTR" >/dev/null
 docker rm -f "$CTR" >/dev/null
 
 run_cmd=(docker run -d
   --name "$CTR"
   --restart "$RESTART"
-  -p "127.0.0.1:${PG_HOST_PORT}:5432"
-  -p "0.0.0.0:${EXTRA_PORT}:5432"
-  -v "${VOL}:/var/lib/postgresql/data")
-if ((${#ENV_ARGS[@]} > 0)); then
-  run_cmd+=("${ENV_ARGS[@]}")
-fi
+  -p "127.0.0.1:${PG_HOST_PORT}:5432")
+for hp in "${EXTRA_PORTS[@]}"; do
+  run_cmd+=(-p "0.0.0.0:${hp}:5432")
+done
+run_cmd+=(-v "${VOL}:/var/lib/postgresql/data")
+run_cmd+=("${ENV_ARGS[@]}")
 run_cmd+=("$IMG")
 "${run_cmd[@]}" >/dev/null
 
@@ -128,14 +175,8 @@ done
 
 log "Published ports:"
 docker port "$CTR"
-
-# Keep api wired if it was using compose; recreate is optional.
-if [[ -f "$COMPOSE" ]]; then
-  args=()
-  [[ -n "$COMPOSE_P" ]] && args+=(-p "$COMPOSE_P")
-  args+=(-f "$COMPOSE" -f "$OVERRIDE")
-  log "Refreshing api via compose (override kept for next upgrade)..."
-  docker compose "${args[@]}" up -d api 2>/dev/null || true
+if ! docker port "$CTR" | grep -Eq "0\\.0\\.0\\.0:${EXTRA_PORTS[0]}\\b|:::${EXTRA_PORTS[0]}\\b"; then
+  die "external port ${EXTRA_PORTS[0]} still missing after recreate"
 fi
 
-log "Done. External managed DB: 0.0.0.0:${EXTRA_PORT}"
+log "Done. External managed DB port(s): ${EXTRA_PORTS[*]}"
