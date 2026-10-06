@@ -5,6 +5,7 @@ import (
 	"errors"
 	"io"
 	"net/http"
+	"strings"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
@@ -198,6 +199,16 @@ func (h *ServersHandler) AcceptPair(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, out)
+}
+
+func (h *ServersHandler) ProxyNode(w http.ResponseWriter, r *http.Request) {
+	id, err := parseUUID(chi.URLParam(r, "id"))
+	if err != nil {
+		writeError(w, servers.ErrInvalidInput)
+		return
+	}
+	apiPath := strings.TrimPrefix(chi.URLParam(r, "*"), "/")
+	h.svc.ProxyNodeAPI(w, r, id, apiPath)
 }
 
 func (h *ServersHandler) NodeStatus(w http.ResponseWriter, r *http.Request) {

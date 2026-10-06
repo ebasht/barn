@@ -129,7 +129,7 @@ func (s *Service) PairRemoteBarn(ctx context.Context, req PairBarnRequest) (Node
 		NodeID:         node.ID,
 		Direction:      "outbound",
 		Purpose:        "master_to_node",
-		Scopes:         []string{ScopeStatusRead, ScopeAppsRead, ScopeBackupsRead, ScopeVersionRead},
+		Scopes:         MasterToNodeScopes(),
 		TokenHash:      nil,
 		EncryptedToken: encNodeToken,
 	})
@@ -217,7 +217,7 @@ func (s *Service) AcceptPair(ctx context.Context, req PairNodeRequest) (PairNode
 		PublicURL:   settings.PublicUrl,
 		MasterToken: masterToken,
 		NodeToken:   nodeToken,
-		Scopes:      []string{ScopeStatusRead, ScopeAppsRead, ScopeBackupsRead, ScopeVersionRead},
+		Scopes:      MasterToNodeScopes(),
 	}, nil
 }
 

@@ -36,6 +36,13 @@ const GLOBAL_NAV: BarnNavItem[] = [
   { href: "/servers/settings", icon: "settings", labelKey: "nav.serversSettings", match: "servers-settings" },
 ];
 
+const SERVERS_NAV: BarnNavItem = {
+  href: "/servers",
+  icon: "servers",
+  labelKey: "nav.servers",
+  match: "servers",
+};
+
 export function resolveBarnNavigation(
   isMaster: boolean,
   target: BarnTarget | null,
@@ -43,30 +50,27 @@ export function resolveBarnNavigation(
   if (!isMaster) return LOCAL_NAV;
   if (!target) return GLOBAL_NAV;
   if (target.kind === "local") {
+    return [LOCAL_NAV[0], SERVERS_NAV, ...LOCAL_NAV.slice(1)];
+  }
+
+  if (target.kind === "barn") {
+    // Full panel management via Master→node API proxy. Master control-plane
+    // settings stay on the Master (not proxied), so omit servers/settings here.
     return [
       LOCAL_NAV[0],
-      { href: "/servers", icon: "servers", labelKey: "nav.servers", match: "servers" },
-      ...LOCAL_NAV.slice(1),
+      SERVERS_NAV,
+      ...LOCAL_NAV.slice(1).filter((item) => item.match !== "servers-settings"),
     ];
   }
 
-  const items: BarnNavItem[] = [
+  // Monitoring agent: overview + servers list only.
+  return [
     {
       href: `/servers/${target.id}`,
       icon: "overview",
       labelKey: "nav.overview",
       match: `server-${target.id}`,
     },
-    { href: "/servers", icon: "servers", labelKey: "nav.servers", match: "servers" },
+    SERVERS_NAV,
   ];
-  if (target.kind === "barn" && target.baseUrl) {
-    items.splice(1, 0, {
-      href: `${target.baseUrl.replace(/\/$/, "")}/sites`,
-      icon: "projects",
-      labelKey: "nav.openRemoteBarn",
-      match: "remote-sites",
-      external: true,
-    });
-  }
-  return items;
 }

@@ -21,7 +21,7 @@ export default function SitesPage() {
   const { activeBarn, isGlobalScope, isMasterMode, nodes } = useBarnScope();
   const { t } = useI18n();
 
-  if (isMasterMode && (isGlobalScope || activeBarn?.kind !== "local")) {
+  if (isMasterMode && isGlobalScope) {
     const knownApps = nodes.reduce((total, node) => total + (node.applications?.total ?? 0), 0);
     return (
       <div className="scope-limited-page">
@@ -29,22 +29,35 @@ export default function SitesPage() {
         <div className="page-header">
           <div>
             <h1>{t("sites.title")}</h1>
-            <p className="muted">
-              {isGlobalScope ? t("master.globalSitesSubtitle") : t("master.remoteSitesSubtitle", { name: activeBarn?.name || t("master.unknownBarn") })}
-            </p>
+            <p className="muted">{t("master.globalSitesSubtitle")}</p>
           </div>
         </div>
         <div className="card scope-limitation-card">
           <div className="scope-limitation-icon" aria-hidden>↗</div>
           <div>
-            <h2>{isGlobalScope ? t("master.globalSitesDeferred") : t("master.remoteAccessRequired")}</h2>
-            <p className="muted">{isGlobalScope ? t("master.globalSitesDeferredHint", { count: knownApps }) : t("master.remoteAccessRequiredHint")}</p>
-            {activeBarn?.kind === "barn" && activeBarn.baseUrl && (
-              <a className="btn" href={`${activeBarn.baseUrl.replace(/\/$/, "")}/sites`} target="_blank" rel="noopener noreferrer">
-                {t("nav.openRemoteBarn")}
-              </a>
-            )}
-            {isGlobalScope && <Link className="btn btn-secondary" href="/servers">{t("master.viewAllServers")}</Link>}
+            <h2>{t("master.globalSitesDeferred")}</h2>
+            <p className="muted">{t("master.globalSitesDeferredHint", { count: knownApps })}</p>
+            <Link className="btn btn-secondary" href="/servers">{t("master.viewAllServers")}</Link>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (isMasterMode && activeBarn?.kind === "agent") {
+    return (
+      <div className="scope-limited-page">
+        <ScopeHeading page={t("sites.title")} />
+        <div className="card scope-limitation-card">
+          <div className="scope-limitation-icon" aria-hidden>!</div>
+          <div>
+            <h2>{t("master.scopeUnavailable")}</h2>
+            <p className="muted">
+              {t("master.agentScopeHint", { name: activeBarn.name || t("master.unknownBarn") })}
+            </p>
+            <Link className="btn btn-secondary" href={`/servers/${activeBarn.id}`}>
+              {t("nav.overview")}
+            </Link>
           </div>
         </div>
       </div>

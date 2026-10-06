@@ -22,20 +22,23 @@ One Barn instance can run as **standalone** (default), **master**, or **managed_
 2. Public URL is used for pairing and agent registration.
 3. `/` redirects to `/overview` on Master and to `/sites` in other modes. The Master shell is labelled **Главный Амбар / Main Barn** and includes the Barn scope switcher. The local Master also appears in the common server list as a highlighted node with the **MASTER** badge.
 
-## Master scopes (Phase 1)
+## Master scopes
 
 Master mode has one explicit UI scope, persisted in the `barn` query parameter:
 
 - **All Barns / Все амбары** — global overview and server health from the existing Servers API;
-- **a selected node** — selecting a row in the common server list opens that node's context. The local Master opens the normal local management UI, while a remote Barn or monitoring agent opens its server overview. Full remote site management stays on the remote Barn panel.
+- **local Master** — full local panel UI (sites, databases, backups, payments, notifications);
+- **remote Barn** — the same panel UI against that node via Master API proxy
+  (`/api/servers/nodes/{id}/proxy/*`), authenticated with the paired `barn:panel:admin` token;
+- **monitoring agent** — server overview only (no panel APIs).
 
-The switcher is populated from `/api/servers/nodes`; it does not invent health, versions, application counts, or capabilities. Global site/deployment aggregation and remote mutations are not part of this iteration.
+The switcher is populated from `/api/servers/nodes`. Global cross-Barn site aggregation is still deferred; manage sites by selecting a specific Barn.
 
 ## Pair remote Barn instance
 
 1. On the remote panel: generate pairing code (`POST /api/servers/pairing-code`, 10 min, one-time, hash stored).
 2. On Master: **Add server → Connect Barn** (или legacy "Connect DockPilot") with name, URL, code.
-3. Master receives a scoped read token (encrypted at rest). Node receives a heartbeat/events token (encrypted on node). Global `API_TOKEN` is never shared.
+3. Master receives a scoped token (status/apps/backups/version + `barn:panel:admin`, encrypted at rest) for status polls and full panel proxy. Node receives a heartbeat/events token (encrypted on node). Global `API_TOKEN` is never shared.
 
 ## Install monitoring agent
 

@@ -59,6 +59,18 @@ test("navigation follows mode and target capability", () => {
   const local = normalizeBarnTargets(settings, [localNode])[0];
   assert.equal(resolveBarnNavigation(true, local).some((item) => item.href === "/databases"), true);
   assert.equal(
+    resolveBarnNavigation(true, { ...local, id: "remote", kind: "barn", isMaster: false, baseUrl: "https://n.example" }).some(
+      (item) => item.href === "/databases",
+    ),
+    true,
+  );
+  assert.equal(
+    resolveBarnNavigation(true, { ...local, id: "remote", kind: "barn", isMaster: false }).some(
+      (item) => item.match === "servers-settings",
+    ),
+    false,
+  );
+  assert.equal(
     resolveBarnNavigation(true, { ...local, id: "remote", kind: "agent", isMaster: false }).some((item) => item.href === "/databases"),
     false,
   );

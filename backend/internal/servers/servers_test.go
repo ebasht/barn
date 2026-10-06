@@ -68,6 +68,27 @@ func TestHasScope(t *testing.T) {
 	}
 }
 
+func TestAllowedProxyPath(t *testing.T) {
+	ok := []string{"sites", "sites/x", "databases/1/health", "system/update", "servers/settings", "mcp/settings"}
+	bad := []string{"", "servers/nodes", "servers/node/status", "servers/ingest/events", "auth/qr", "unknown"}
+	for _, p := range ok {
+		if !AllowedProxyPath(p) {
+			t.Fatalf("expected allowed: %s", p)
+		}
+	}
+	for _, p := range bad {
+		if AllowedProxyPath(p) {
+			t.Fatalf("expected blocked: %s", p)
+		}
+	}
+}
+
+func TestMasterToNodeScopesIncludesPanelAdmin(t *testing.T) {
+	if !HasScope(MasterToNodeScopes(), ScopePanelAdmin) {
+		t.Fatal("panel admin required for remote management")
+	}
+}
+
 func TestDedupKey(t *testing.T) {
 	id := uuid.MustParse("11111111-1111-1111-1111-111111111111")
 	k := DedupKey(id, "node.offline", "node", id.String())

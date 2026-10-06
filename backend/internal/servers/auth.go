@@ -115,9 +115,52 @@ func (s *Service) storeNodeInboundToken(ctx context.Context, nodeToken string) e
 		NodeID:         local.ID,
 		Direction:      "inbound",
 		Purpose:        "master_to_node",
-		Scopes:         []string{ScopeStatusRead, ScopeAppsRead, ScopeBackupsRead, ScopeVersionRead},
+		Scopes:         MasterToNodeScopes(),
 		TokenHash:      HashToken(nodeToken),
 		EncryptedToken: nil,
 	})
 	return mapErr(err)
 }
+
+// PanelAdminAuthorized reports whether the request carries a Master→node token
+// allowed to use the full panel API (sites, databases, backups, …).
+func (s *Service) PanelAdminAuthorized(r *http.Request) bool {
+	raw := extractPanelToken(r)
+	if raw == "" {
+		return false
+	}
+	cred, err := s.q.GetInboundCredentialByHash(r.Context(), HashToken(raw))
+	if err != nil {
+		return false
+	}
+	if !tokenHashEqual(cred.TokenHash, HashToken(raw)) {
+		return false
+	}
+	if cred.Purpose != "master_to_node" {
+		return false
+	}
+	// Require panel:admin when present; accept legacy master_to_node read tokens
+	// until EnsurePanelAdminScopes rewrites them on the managed node.
+	if !HasScope(cred.Scopes, ScopePanelAdmin) &&
+		!HasScope(cred.Scopes, "*") &&
+		!HasScope(cred.Scopes, ScopeStatusRead) {
+		return false
+	}
+	node, err := s.q.GetServersNode(r.Context(), cred.NodeID)
+	if err != nil || node.DeletedAt.Valid {
+		return false
+	}
+	return true
+}
+
+func extractPanelToken(r *http.Request) string {
+	if raw := extractBearer(r); raw != "" {
+		return raw
+	}
+	if t := strings.TrimSpace(r.Header.Get(headerAPITokenLegacy)); t != "" {
+		return t
+	}
+	return strings.TrimSpace(r.URL.Query().Get("token"))
+}
+
+const headerAPITokenLegacy = "X-API-Token"

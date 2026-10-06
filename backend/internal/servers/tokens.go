@@ -37,6 +37,7 @@ const (
 	ScopeAppsRead       = "fleet:apps:read"
 	ScopeBackupsRead    = "fleet:backups:read"
 	ScopeVersionRead    = "fleet:version:read"
+	ScopePanelAdmin     = "barn:panel:admin"
 	ScopeHeartbeatWrite = "fleet:heartbeat:write"
 	ScopeEventsWrite    = "fleet:events:write"
 
@@ -103,6 +104,13 @@ func HasScope(scopes []string, need string) bool {
 		}
 	}
 	return false
+}
+
+// MasterToNodeScopes is granted to Master for calling a paired Barn panel.
+func MasterToNodeScopes() []string {
+	return []string{
+		ScopeStatusRead, ScopeAppsRead, ScopeBackupsRead, ScopeVersionRead, ScopePanelAdmin,
+	}
 }
 
 func MasterCapabilities() []string {

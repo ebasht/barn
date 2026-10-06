@@ -23,8 +23,9 @@ Barn modes are `standalone`, `master`, and `managed_node`. Preserve their bounda
 ## Protect trust boundaries
 
 - Pairing codes and registration tokens are short-lived, one-time credentials stored as hashes. Mark them used atomically and do not log plaintext.
-- Barn-to-Barn pairing exchanges scoped credentials: the master gets read scopes; the node gets heartbeat/event write scopes. Never share the global panel `API_TOKEN`.
-- Each node endpoint in `router.go` declares a specific scope (`status`, apps, backups, version, heartbeat, or events). Add the narrowest scope and test missing/wrong/revoked credentials.
+- Barn-to-Barn pairing exchanges scoped credentials: the master gets read probes plus `barn:panel:admin` for `/api/servers/nodes/{id}/proxy/*`; the node gets heartbeat/event write scopes. Never share the global panel `API_TOKEN`.
+- Managed nodes accept either `API_TOKEN` or an inbound `master_to_node` panel-admin credential on panel routes (`PanelAuth`). Keep proxy path allowlists tight; do not forward pairing/ingest/agent/node-admin routes.
+- Each node probe/ingest endpoint in `router.go` declares a specific scope (`status`, apps, backups, version, heartbeat, or events). Add the narrowest scope and test missing/wrong/revoked credentials.
 - Stored remote credentials are encrypted at rest. SSH passwords, private keys, and optional sudo passwords stay only in the in-memory credential store with bounded TTL; never persist or emit them in installation logs.
 - Host-key fingerprint confirmation is a required SSH trust step. Do not bypass it to automate installation.
 

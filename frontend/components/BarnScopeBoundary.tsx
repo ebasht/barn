@@ -16,9 +16,9 @@ export function BarnScopeBoundary({ children }: { children: React.ReactNode }) {
     LOCAL_ONLY_PREFIXES.some((prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`)) ||
     pathname === "/sites/new" ||
     pathname.startsWith("/sites/");
-  const isLocalScope = activeBarn?.kind === "local";
+  const canManagePanel = activeBarn?.kind === "local" || activeBarn?.kind === "barn";
 
-  if (!isMasterMode || !isLocalOnly || isLocalScope) return <>{children}</>;
+  if (!isMasterMode || !isLocalOnly || canManagePanel) return <>{children}</>;
 
   return (
     <div className="scope-limited-page">
@@ -30,13 +30,9 @@ export function BarnScopeBoundary({ children }: { children: React.ReactNode }) {
           <p className="muted">
             {isGlobalScope
               ? t("master.selectLocalBarnHint")
-              : t("master.remoteMutationHint", { name: activeBarn?.name || t("master.unknownBarn") })}
+              : t("master.agentScopeHint", { name: activeBarn?.name || t("master.unknownBarn") })}
           </p>
-          {activeBarn?.kind === "barn" && activeBarn.baseUrl ? (
-            <a className="btn" href={activeBarn.baseUrl} target="_blank" rel="noopener noreferrer">{t("nav.openRemoteBarn")}</a>
-          ) : (
-            <Link className="btn btn-secondary" href="/overview?barn=all">{t("master.backToOverview")}</Link>
-          )}
+          <Link className="btn btn-secondary" href="/overview?barn=all">{t("master.backToOverview")}</Link>
         </div>
       </div>
     </div>

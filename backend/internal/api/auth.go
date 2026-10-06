@@ -5,6 +5,8 @@ import (
 	"strings"
 
 	"crypto/subtle"
+
+	"github.com/ebash/barn/backend/internal/servers"
 )
 
 const (
@@ -23,6 +25,23 @@ func BearerTokenAuth(expected string) func(http.Handler) http.Handler {
 				return
 			}
 			next.ServeHTTP(w, r)
+		})
+	}
+}
+
+// PanelAuth accepts the panel API token or a Master→node panel-admin credential.
+func PanelAuth(expected string, serversSvc *servers.Service) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if tokenValid(r, expected) {
+				next.ServeHTTP(w, r)
+				return
+			}
+			if serversSvc != nil && serversSvc.PanelAdminAuthorized(r) {
+				next.ServeHTTP(w, r)
+				return
+			}
+			writeJSON(w, http.StatusUnauthorized, errorBody{Error: "unauthorized"})
 		})
 	}
 }

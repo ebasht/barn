@@ -20,6 +20,7 @@ import {
   type BarnScope,
   type BarnTarget,
 } from "@/lib/barn-scope";
+import { setRemoteApiTarget } from "@/lib/remote-api-target";
 import { useServersMode } from "@/lib/servers-mode";
 import type { ServerNode } from "@/lib/types";
 
@@ -113,6 +114,14 @@ export function BarnScopeProvider({ children }: { children: ReactNode }) {
   );
 
   useEffect(() => {
+    if (isMaster && activeBarn?.kind === "barn") {
+      setRemoteApiTarget(activeBarn.id);
+    } else {
+      setRemoteApiTarget(null);
+    }
+  }, [activeBarn, isMaster]);
+
+  useEffect(() => {
     if (
       isMaster &&
       !loadingTargets &&
@@ -122,6 +131,7 @@ export function BarnScopeProvider({ children }: { children: ReactNode }) {
     ) {
       setCurrentScope(GLOBAL_BARN_SCOPE);
       window.sessionStorage.removeItem(BARN_SCOPE_STORAGE);
+      setRemoteApiTarget(null);
       router.replace(withBarnScope(pathname || "/overview", GLOBAL_BARN_SCOPE));
     }
   }, [activeBarn, currentScope, isMaster, loadingTargets, pathname, router, targetsLoaded]);
@@ -134,6 +144,7 @@ export function BarnScopeProvider({ children }: { children: ReactNode }) {
   const selectGlobalScope = useCallback(() => {
     setCurrentScope(GLOBAL_BARN_SCOPE);
     window.sessionStorage.removeItem(BARN_SCOPE_STORAGE);
+    setRemoteApiTarget(null);
     router.push(withBarnScope("/overview", GLOBAL_BARN_SCOPE));
   }, [router]);
 
@@ -141,7 +152,15 @@ export function BarnScopeProvider({ children }: { children: ReactNode }) {
     const scope: BarnScope = { type: "node", nodeId: target.id };
     setCurrentScope(scope);
     window.sessionStorage.setItem(BARN_SCOPE_STORAGE, target.id);
-    const home = target.kind === "local" ? "/sites" : `/servers/${target.id}`;
+    if (target.kind === "barn") {
+      setRemoteApiTarget(target.id);
+    } else {
+      setRemoteApiTarget(null);
+    }
+    const home =
+      target.kind === "local" || target.kind === "barn"
+        ? "/sites"
+        : `/servers/${target.id}`;
     router.push(withBarnScope(home, scope));
   }, [router]);
 

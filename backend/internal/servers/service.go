@@ -89,6 +89,22 @@ func NewService(
 	}
 }
 
+// ensurePanelAdminScopes upgrades legacy master_to_node credentials so Master
+// can proxy full panel management after the node is upgraded.
+func (s *Service) ensurePanelAdminScopes(ctx context.Context) error {
+	if s.pool == nil {
+		return nil
+	}
+	_, err := s.pool.Exec(ctx, `
+UPDATE servers_node_credentials
+SET scopes = $1::text[], updated_at = now()
+WHERE revoked_at IS NULL
+  AND purpose = 'master_to_node'
+  AND NOT (scopes @> ARRAY[$2]::text[])
+`, MasterToNodeScopes(), ScopePanelAdmin)
+	return err
+}
+
 // ensureInstallSchema applies 00017 columns if the migrate image was skipped on upgrade.
 func (s *Service) ensureInstallSchema(ctx context.Context) error {
 	if s.pool == nil {
@@ -125,6 +141,7 @@ END $$`)
 
 func (s *Service) ensureSettings(ctx context.Context) (db.ServersSetting, error) {
 	_ = s.ensureInstallSchema(ctx)
+	_ = s.ensurePanelAdminScopes(ctx)
 	_ = s.q.EnsureServersSettings(ctx)
 	row, err := s.q.GetServersSettings(ctx)
 	if err != nil {

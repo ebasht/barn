@@ -89,7 +89,7 @@ func NewRouter(h Handlers, apiToken string, corsOrigins []string) http.Handler {
 		}
 
 		r.Group(func(r chi.Router) {
-			r.Use(BearerTokenAuth(apiToken))
+			r.Use(PanelAuth(apiToken, h.ServersSvc))
 			if h.MCP != nil {
 				r.Get("/mcp/settings", h.MCP.Get)
 				r.Put("/mcp/settings", h.MCP.Update)
@@ -112,6 +112,7 @@ func NewRouter(h Handlers, apiToken string, corsOrigins []string) http.Handler {
 					r.Put("/nodes/{id}/billing", h.Servers.UpdateNodeBilling)
 					r.Post("/nodes/{id}/update-agent", h.Servers.StartAgentUpdate)
 					r.Delete("/nodes/{id}", h.Servers.DeleteNode)
+					r.HandleFunc("/nodes/{id}/proxy/*", h.Servers.ProxyNode)
 					r.Get("/events", h.Servers.ListEvents)
 					r.Get("/incidents", h.Servers.ListIncidents)
 					r.Post("/pairing-code", h.Servers.CreatePairingCode)

@@ -69,10 +69,15 @@ import type {
 } from "./types";
 
 import { resolveApiBase } from "./api-base";
+import { resolveRemoteApiPath } from "./remote-api-target";
 
 /** Browser: resolved at call time (supports auto/same-origin). SSR/build: env or localhost. */
 export function getApiBase(): string {
   return resolveApiBase();
+}
+
+function apiURL(path: string): string {
+  return `${getApiBase()}${resolveRemoteApiPath(path)}`;
 }
 
 // Legacy export for modules that read once at module load (prefer getApiBase() in client code).
@@ -102,7 +107,7 @@ async function request<T>(
   path: string,
   options: RequestInit = {},
 ): Promise<T> {
-  const res = await fetch(`${getApiBase()}${path}`, {
+  const res = await fetch(apiURL(path), {
     ...options,
     headers: {
       "Content-Type": "application/json",
@@ -136,7 +141,7 @@ async function request<T>(
 }
 
 function streamURL(path: string): string {
-  const url = new URL(`${getApiBase()}${path}`);
+  const url = new URL(apiURL(path));
   const token = getApiToken();
   if (token) {
     url.searchParams.set("token", token);
@@ -488,14 +493,11 @@ export const api = {
       "drop_existing",
       form.drop_existing ? "true" : "false",
     );
-    const res = await fetch(
-      `${getApiBase()}/api/databases/${id}/restore-upload`,
-      {
-        method: "POST",
-        headers: authHeaders(),
-        body,
-      },
-    );
+    const res = await fetch(apiURL(`/api/databases/${id}/restore-upload`), {
+      method: "POST",
+      headers: authHeaders(),
+      body,
+    });
     if (res.status === 401) {
       clearApiToken();
       notifyAuthLogout();
@@ -535,18 +537,15 @@ export const api = {
       "drop_existing",
       form.drop_existing ? "true" : "false",
     );
-    return fetch(
-      `${getApiBase()}/api/databases/${id}/restore-upload?stream=1`,
-      {
-        method: "POST",
-        headers: {
-          ...authHeaders(),
-          Accept: "text/event-stream",
-        },
-        body,
-        signal,
+    return fetch(apiURL(`/api/databases/${id}/restore-upload?stream=1`), {
+      method: "POST",
+      headers: {
+        ...authHeaders(),
+        Accept: "text/event-stream",
       },
-    );
+      body,
+      signal,
+    });
   },
 
   getPanelBackupSettings: () =>
