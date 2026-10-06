@@ -359,6 +359,33 @@ sync_panel_db_password() {
   return 0
 }
 
+# Return success when a host TCP port is already owned by another container or
+# process. Upgrade must not guess a replacement: managed DB connection strings
+# contain the allocated port and changing it here would silently break clients.
+host_port_is_busy() {
+  local port="$1" owner=""
+  owner="$(docker ps --format '{{.Names}} {{.Ports}}' 2>/dev/null \
+    | awk -v needle=":${port}->" 'index($0, needle) { print; exit }' || true)"
+  if [[ -n "$owner" ]]; then
+    HOST_PORT_OWNER="$owner"
+    return 0
+  fi
+  if command -v ss >/dev/null 2>&1; then
+    if [[ -n "$(ss -H -ltn "sport = :${port}" 2>/dev/null || true)" ]]; then
+      HOST_PORT_OWNER="host process"
+      return 0
+    fi
+  elif command -v netstat >/dev/null 2>&1; then
+    if netstat -ltn 2>/dev/null | awk -v suffix=":${port}" \
+      '$4 ~ suffix "$" { found=1 } END { exit !found }'; then
+      HOST_PORT_OWNER="host process"
+      return 0
+    fi
+  fi
+  HOST_PORT_OWNER=""
+  return 1
+}
+
 log "Selecting Postgres data volume (keeps real data, not an empty one)..."
 PG_LIVE_VOL=""
 PG_EXTRA_PORTS=()
@@ -399,8 +426,14 @@ fi
 # Managed DB apps commonly use AllocatePort (e.g. 18081). If upgrade already
 # dropped those bindings, restore the usual managed port so connection strings work.
 if ((${#PG_EXTRA_PORTS[@]} == 0)); then
-  PG_EXTRA_PORTS+=(18081)
-  log "No extra host ports on container — publishing 18081 for managed DB clients"
+  HOST_PORT_OWNER=""
+  if host_port_is_busy 18081; then
+    log "Port 18081 is already allocated (${HOST_PORT_OWNER}) — leaving it untouched"
+    log "No extra PostgreSQL port will be guessed during upgrade"
+  else
+    PG_EXTRA_PORTS+=(18081)
+    log "No extra host ports on container — publishing 18081 for managed DB clients"
+  fi
 fi
 
 {
@@ -483,4 +516,8 @@ fi
 log "Upgrade complete → ${VERSION}"
 compose ps
 log "Check version in panel header (e.g. ${VERSION})"
-log "Managed DB port(s): ${PG_EXTRA_PORTS[*]} — apps using host:18081 should connect again"
+if ((${#PG_EXTRA_PORTS[@]} > 0)); then
+  log "Managed DB port(s) preserved on panel postgres: ${PG_EXTRA_PORTS[*]}"
+else
+  log "Managed DB ports are owned outside panel postgres; existing allocations were left untouched"
+fi
