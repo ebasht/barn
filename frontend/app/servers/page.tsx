@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { ServerNodeBadges, ServerStatusBadge } from "@/components/ServerBadges";
+import { ScopeHeading } from "@/components/ScopeHeading";
 import { api, ApiError } from "@/lib/api";
 import {
   filterServerNodes,
@@ -14,6 +15,7 @@ import {
 } from "@/lib/servers-utils";
 import { formatBytes, formatMoneyMinor, formatPercent } from "@/lib/format";
 import { useI18n } from "@/lib/i18n/context";
+import { withBarnScope } from "@/lib/barn-scope";
 import type { ServerNode, ServersOverview } from "@/lib/types";
 
 const FILTERS: ServerFilter[] = [
@@ -72,6 +74,7 @@ export default function ServersOverviewPage() {
 
   return (
     <div className="servers-page">
+      <ScopeHeading page={t("servers.title")} />
       <div className="page-header">
         <div>
           <h1>{t("servers.title")}</h1>
@@ -198,7 +201,10 @@ function ServerNodeRow({
   const { t } = useI18n();
   const href = serverNodeHref(node);
   const external = serverNodeExternal(node);
-  const detailHref = `/servers/${node.id}`;
+  const nodeScope = { type: "node" as const, nodeId: node.id };
+  const detailHref = withBarnScope(`/servers/${node.id}`, nodeScope);
+  const manageHref = href ? withBarnScope(href, nodeScope) : null;
+  const isLocalMaster = node.connection_type === "local" || node.role === "master";
   const monthly =
     node.billing?.monthly_equiv_minor ?? node.billing?.cost_minor ?? 0;
   const hasBilling =
@@ -219,9 +225,10 @@ function ServerNodeRow({
     node.billing.days_left <= alertDays;
 
   return (
-    <article className="servers-node-card">
+    <article className={`servers-node-card${isLocalMaster ? " servers-node-card-master" : ""}`}>
       <div className="servers-node-top">
         <div className="servers-node-heading">
+          {isLocalMaster && <span className="servers-master-label">{t("master.title")}</span>}
           <Link href={detailHref} className="servers-node-name">
             {node.name}
           </Link>
@@ -247,8 +254,8 @@ function ServerNodeRow({
               {t("servers.openPanel")}
             </a>
           )}
-          {href && !external && node.connection_type === "local" && (
-            <Link href={href} className="btn btn-secondary">
+          {manageHref && !external && node.connection_type === "local" && (
+            <Link href={manageHref} className="btn btn-secondary">
               {t("servers.manageLocal")}
             </Link>
           )}

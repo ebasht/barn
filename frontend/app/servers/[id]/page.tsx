@@ -342,7 +342,7 @@ export default function ServerDetailPage() {
     return (
       <div>
         <div className="alert alert-error">{error || t("servers.nodeNotFound")}</div>
-        <Link href="/servers" className="btn btn-secondary">
+        <Link href="/servers?barn=all" className="btn btn-secondary">
           {t("common.back")}
         </Link>
       </div>
@@ -360,7 +360,7 @@ export default function ServerDetailPage() {
           </div>
         </div>
         <div className="page-actions">
-          <Link href="/servers" className="btn btn-secondary">
+          <Link href="/servers?barn=all" className="btn btn-secondary">
             {t("common.back")}
           </Link>
           {isBarnPanel(node) && node.base_url && (

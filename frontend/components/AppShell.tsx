@@ -5,6 +5,8 @@ import { usePathname } from "next/navigation";
 import { AuthGate } from "@/components/AuthGate";
 import { Nav } from "@/components/Nav";
 import { ServersModeProvider } from "@/lib/servers-mode";
+import { BarnScopeProvider } from "@/lib/barn-scope-context";
+import { BarnScopeBoundary } from "@/components/BarnScopeBoundary";
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
@@ -21,8 +23,10 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   return (
     <AuthGate>
       <ServersModeProvider>
-        <Nav />
-        <main>{children}</main>
+        <BarnScopeProvider>
+          <Nav />
+          <main><BarnScopeBoundary>{children}</BarnScopeBoundary></main>
+        </BarnScopeProvider>
       </ServersModeProvider>
     </AuthGate>
   );

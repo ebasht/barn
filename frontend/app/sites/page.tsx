@@ -10,12 +10,51 @@ import { PostgresHealthSummary } from "@/components/PostgresHealthSummary";
 import { ServerStatusPanel } from "@/components/ServerStatusPanel";
 import { SiteJsonActions } from "@/components/SiteJsonActions";
 import { StatusBadge } from "@/components/StatusBadge";
+import { ScopeHeading } from "@/components/ScopeHeading";
 import { api, ApiError } from "@/lib/api";
+import { useBarnScope } from "@/lib/barn-scope-context";
 import { useI18n } from "@/lib/i18n/context";
 import { siteUrlHref } from "@/lib/site-url";
 import type { SiteHealth, SiteListItem } from "@/lib/types";
 
 export default function SitesPage() {
+  const { activeBarn, isGlobalScope, isMasterMode, nodes } = useBarnScope();
+  const { t } = useI18n();
+
+  if (isMasterMode && (isGlobalScope || activeBarn?.kind !== "local")) {
+    const knownApps = nodes.reduce((total, node) => total + (node.applications?.total ?? 0), 0);
+    return (
+      <div className="scope-limited-page">
+        <ScopeHeading page={t("sites.title")} />
+        <div className="page-header">
+          <div>
+            <h1>{t("sites.title")}</h1>
+            <p className="muted">
+              {isGlobalScope ? t("master.globalSitesSubtitle") : t("master.remoteSitesSubtitle", { name: activeBarn?.name || t("master.unknownBarn") })}
+            </p>
+          </div>
+        </div>
+        <div className="card scope-limitation-card">
+          <div className="scope-limitation-icon" aria-hidden>↗</div>
+          <div>
+            <h2>{isGlobalScope ? t("master.globalSitesDeferred") : t("master.remoteAccessRequired")}</h2>
+            <p className="muted">{isGlobalScope ? t("master.globalSitesDeferredHint", { count: knownApps }) : t("master.remoteAccessRequiredHint")}</p>
+            {activeBarn?.kind === "barn" && activeBarn.baseUrl && (
+              <a className="btn" href={`${activeBarn.baseUrl.replace(/\/$/, "")}/sites`} target="_blank" rel="noopener noreferrer">
+                {t("nav.openRemoteBarn")}
+              </a>
+            )}
+            {isGlobalScope && <Link className="btn btn-secondary" href="/servers">{t("master.viewAllServers")}</Link>}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  return <LocalSitesPage />;
+}
+
+function LocalSitesPage() {
   const { t, formatDateTime } = useI18n();
   const [sites, setSites] = useState<SiteListItem[]>([]);
   const [healthBySite, setHealthBySite] = useState<Record<string, SiteHealth>>({});
@@ -91,6 +130,7 @@ export default function SitesPage() {
       <HomeSystemSummary />
       <div className="page-header sites-dashboard-header">
         <div>
+          <ScopeHeading page={t("sites.title")} />
           <h1>{t("sites.title")}</h1>
           <p className="muted sites-dashboard-subtitle">{t("sites.dashboardSubtitle")}</p>
         </div>

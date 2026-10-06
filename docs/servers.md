@@ -11,8 +11,8 @@ One Barn instance can run as **standalone** (default), **master**, or **managed_
 
 | Mode | Home | Servers UI | Notes |
 |------|------|------------|-------|
-| `standalone` | `/sites` | settings only | Existing installs unchanged after migration |
-| `master` | `/sites` | yes (`/servers`) | Local apps + remote Barn panels + agents |
+| `standalone` | `/sites` | settings only | Manages the current server; existing installs remain unchanged |
+| `master` | `/overview` | yes (`/servers`) | Global infrastructure scope plus a switchable local/remote Barn context |
 | `managed_node` | `/sites` | settings only | Paired to one Master; optional centralized Telegram |
 
 ## Enable Master
@@ -20,7 +20,16 @@ One Barn instance can run as **standalone** (default), **master**, or **managed_
 1. Open **Barn settings** (`/servers/settings`) or enable via API:
    - `PUT /api/servers/settings` with `{"enable_master": true, "node_name": "…", "public_url": "https://…"}`
 2. Public URL is used for pairing and agent registration.
-3. `/` redirects to `/sites`. On Master, nav shows **Servers** as the second tab. Local server appears with badge **MASTER**.
+3. `/` redirects to `/overview` on Master and to `/sites` in other modes. The Master shell is labelled **Главный Амбар / Main Barn**. The local Master appears in the common server list as a highlighted node with the **MASTER** badge.
+
+## Master scopes (Phase 1)
+
+Master mode has one explicit UI scope, persisted in the `barn` query parameter:
+
+- **All Barns / Все амбары** — global overview and server health from the existing Servers API;
+- **a selected node** — selecting a row in the common server list opens that node's context. The local Master opens the normal local management UI, while a remote Barn or monitoring agent opens its server overview. Full remote site management stays on the remote Barn panel.
+
+The switcher is populated from `/api/servers/nodes`; it does not invent health, versions, application counts, or capabilities. Global site/deployment aggregation and remote mutations are not part of this iteration.
 
 ## Pair remote Barn instance
 

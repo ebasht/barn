@@ -97,3 +97,10 @@ body:has(.auth-screen) { padding-left: 0; }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { scroll-behavior: auto !important; transition: none !important; animation: none !important; }
 }
+
+/* Master shell overrides are last so the wider scope selector wins the legacy nav cascade. */
+.nav-master { border-color: #d7deea; }
+@media (min-width: 769px) {
+  .nav.nav-master { width: 248px; }
+  body:has(.nav-master) { padding-left: 248px; }
+}

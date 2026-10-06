@@ -8,14 +8,14 @@ import { useI18n } from "@/lib/i18n/context";
 
 export function HomeRedirect() {
   const router = useRouter();
-  const { loading } = useServersMode();
+  const { loading, isMaster } = useServersMode();
   const { t } = useI18n();
 
   useEffect(() => {
     if (loading) return;
     let cancelled = false;
     (async () => {
-      const home = await resolveHomePath();
+      const home = isMaster ? "/overview" : await resolveHomePath();
       if (!cancelled) {
         router.replace(home);
       }
@@ -23,7 +23,7 @@ export function HomeRedirect() {
     return () => {
       cancelled = true;
     };
-  }, [loading, router]);
+  }, [isMaster, loading, router]);
 
   return (
     <p className="muted" style={{ padding: "2rem 1rem", textAlign: "center" }}>
