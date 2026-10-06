@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"net"
 	"strconv"
+	"strings"
 
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/container"
@@ -18,16 +19,16 @@ import (
 )
 
 type RealClient struct {
-	cli          *client.Client
-	logger       *slog.Logger
-	portStart    int
-	portEnd      int
+	cli       *client.Client
+	logger    *slog.Logger
+	portStart int
+	portEnd   int
 }
 
 type RealConfig struct {
-	Host       string
-	PortStart  int
-	PortEnd    int
+	Host      string
+	PortStart int
+	PortEnd   int
 }
 
 func NewRealClient(cfg RealConfig, logger *slog.Logger) (*RealClient, error) {
@@ -138,14 +139,37 @@ func (c *RealClient) Run(ctx context.Context, opts RunOptions) (string, error) {
 		containerPort := strconv.Itoa(opts.ContainerPort)
 		portKey := nat.Port(containerPort + "/tcp")
 		config.ExposedPorts = nat.PortSet{portKey: struct{}{}}
-		hostConfig.PortBindings = nat.PortMap{
-			portKey: []nat.PortBinding{{HostIP: "0.0.0.0", HostPort: hostPort}},
+		bindings := []nat.PortBinding{{HostIP: "0.0.0.0", HostPort: hostPort}}
+		seen := map[string]struct{}{"0.0.0.0:" + hostPort: {}}
+		for _, extra := range opts.ExtraPublishes {
+			if extra.HostPort <= 0 {
+				continue
+			}
+			hip := strings.TrimSpace(extra.HostIP)
+			if hip == "" {
+				hip = "0.0.0.0"
+			}
+			hp := strconv.Itoa(extra.HostPort)
+			key := hip + ":" + hp
+			if _, ok := seen[key]; ok {
+				continue
+			}
+			// Same host port on all-interfaces already covers loopback.
+			if hip == "127.0.0.1" {
+				if _, ok := seen["0.0.0.0:"+hp]; ok {
+					continue
+				}
+			}
+			seen[key] = struct{}{}
+			bindings = append(bindings, nat.PortBinding{HostIP: hip, HostPort: hp})
 		}
+		hostConfig.PortBindings = nat.PortMap{portKey: bindings}
 		c.logger.InfoContext(ctx, "docker run",
 			"image", opts.ImageTag,
 			"name", containerName,
 			"host_port", opts.HostPort,
 			"container_port", opts.ContainerPort,
+			"extra_publishes", len(bindings)-1,
 		)
 	} else {
 		c.logger.InfoContext(ctx, "docker run (no ports)",

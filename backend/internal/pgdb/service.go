@@ -6,7 +6,10 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"net"
 	"net/url"
+	"os"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -232,7 +235,7 @@ func (s *Service) DeployInstanceWithLog(ctx context.Context, id uuid.UUID, logFn
 	})
 	log("info", fmt.Sprintf("starting container %s (volume %s)", cname, vol))
 
-	_, err = s.docker.Run(ctx, docker.RunOptions{
+	runOpts := docker.RunOptions{
 		ImageTag:      inst.Image,
 		ContainerName: cname,
 		StopNames:     []string{cname, "barn-postgres", "dockpilot-postgres"},
@@ -252,7 +255,21 @@ func (s *Service) DeployInstanceWithLog(ctx context.Context, id uuid.UUID, logFn
 			Type:   "volume",
 		}},
 		EnsureVolumes: []string{vol},
-	})
+	}
+	// Managed DBs share barn-postgres with the panel. Keep the panel's
+	// localhost publish so API DATABASE_URL (127.0.0.1:5433) survives redeploy,
+	// while hostPort stays on 0.0.0.0 for external app clients.
+	if publish {
+		if panelPort := panelPostgresHostPort(); panelPort > 0 && panelPort != hostPort {
+			runOpts.ExtraPublishes = append(runOpts.ExtraPublishes, docker.PortPublish{
+				HostIP:   "127.0.0.1",
+				HostPort: panelPort,
+			})
+			log("info", fmt.Sprintf("also publishing panel port 127.0.0.1:%d", panelPort))
+		}
+	}
+
+	_, err = s.docker.Run(ctx, runOpts)
 	if err != nil {
 		log("error", "container start failed: "+err.Error())
 		_, _ = s.queries.UpdatePgInstanceStatus(ctx, db.UpdatePgInstanceStatusParams{
@@ -756,6 +773,34 @@ func validateSlug(slug string) error {
 		return fmt.Errorf("%w: invalid slug", ErrInvalidInput)
 	}
 	return nil
+}
+
+// panelPostgresHostPort is the localhost publish used by the API container
+// (DATABASE_URL → 127.0.0.1:5433). Managed Deploy must keep this binding.
+func panelPostgresHostPort() int {
+	if v := strings.TrimSpace(os.Getenv("POSTGRES_HOST_PORT")); v != "" {
+		if n, err := strconv.Atoi(v); err == nil && n > 0 && n < 65536 {
+			return n
+		}
+	}
+	raw := strings.TrimSpace(os.Getenv("DATABASE_URL"))
+	if raw == "" {
+		return 5433
+	}
+	u, err := url.Parse(raw)
+	if err != nil || u.Host == "" {
+		return 5433
+	}
+	_, port, err := net.SplitHostPort(u.Host)
+	if err != nil {
+		// host without port
+		return 5433
+	}
+	n, err := strconv.Atoi(port)
+	if err != nil || n <= 0 || n >= 65536 {
+		return 5433
+	}
+	return n
 }
 
 func isUniqueViolation(err error) bool {

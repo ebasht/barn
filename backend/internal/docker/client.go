@@ -27,10 +27,19 @@ type RunOptions struct {
 	HostPort      int
 	ContainerPort int
 	Env           map[string]string
-	PublishPorts   bool // false for Telegram bots (long polling, no HTTP)
+	PublishPorts  bool // false for Telegram bots (long polling, no HTTP)
+	// ExtraPublishes adds more host bindings for the same ContainerPort
+	// (e.g. panel localhost:5433 + managed 0.0.0.0:18081 on barn-postgres).
+	ExtraPublishes []PortPublish
 	Mounts         []Mount
 	EnsureVolumes  []string // named Docker volumes to create before run
 	NetworkHost    bool     // docker network_mode: host
+}
+
+// PortPublish is an extra host→container TCP publish used with PublishPorts.
+type PortPublish struct {
+	HostIP   string // empty or "0.0.0.0" = all interfaces; "127.0.0.1" = loopback only
+	HostPort int
 }
 
 // ExecOptions describes a one-shot command inside a running container.
