@@ -12,10 +12,10 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
       POSTGRES_DB: ${POSTGRES_DB:-dockpilot}
     ports:
-      # Panel API (host network) — localhost only
+      # Panel API (host network) — localhost only.
+      # Managed-DB 0.0.0.0 publish is applied by barn-upgrade / publish-managed-pg-port.sh
+      # only when pdb_instances have a host_port (never steal site AllocatePort range).
       - "127.0.0.1:${POSTGRES_HOST_PORT:-5433}:5432"
-      # Managed DB apps — must be on the base compose file (override merge drops this on many hosts)
-      - "0.0.0.0:${MANAGED_PG_HOST_PORT:-18081}:5432"
     volumes:
       - dock_pilot_pg:/var/lib/postgresql/data
     healthcheck:

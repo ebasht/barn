@@ -271,14 +271,21 @@ func (c *RealClient) stopContainer(ctx context.Context, name string) error {
 }
 
 func (c *RealClient) AllocatePort(ctx context.Context) (int, error) {
-	for port := c.portStart; port <= c.portEnd; port++ {
+	return c.AllocatePortInRange(ctx, c.portStart, c.portEnd)
+}
+
+func (c *RealClient) AllocatePortInRange(ctx context.Context, start, end int) (int, error) {
+	if start <= 0 || end < start {
+		return 0, fmt.Errorf("invalid port range %d-%d", start, end)
+	}
+	for port := start; port <= end; port++ {
 		if !c.hostPortAvailable(ctx, port) {
 			continue
 		}
-		c.logger.InfoContext(ctx, "allocated host port", "port", port)
+		c.logger.InfoContext(ctx, "allocated host port", "port", port, "range_start", start, "range_end", end)
 		return port, nil
 	}
-	return 0, fmt.Errorf("no free port in range %d-%d", c.portStart, c.portEnd)
+	return 0, fmt.Errorf("no free port in range %d-%d", start, end)
 }
 
 // HostPortAvailable reports whether the host port can be bound (not held by Docker).

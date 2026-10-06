@@ -207,7 +207,8 @@ func (s *Service) DeployInstanceWithLog(ctx context.Context, id uuid.UUID, logFn
 			hostPort = int(inst.HostPort.Int32)
 			log("info", fmt.Sprintf("using host port %d", hostPort))
 		} else {
-			hostPort, err = s.docker.AllocatePort(ctx)
+			// Dedicated range away from site AllocatePort (18080–18999).
+			hostPort, err = s.docker.AllocatePortInRange(ctx, 15432, 15599)
 			if err != nil {
 				log("error", "allocate port: "+err.Error())
 				_, _ = s.queries.UpdatePgInstanceStatus(ctx, db.UpdatePgInstanceStatusParams{

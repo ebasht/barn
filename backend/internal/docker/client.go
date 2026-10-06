@@ -60,6 +60,8 @@ type Client interface {
 	Run(ctx context.Context, opts RunOptions) (containerID string, err error)
 	Stop(ctx context.Context, containerNames ...string) error
 	AllocatePort(ctx context.Context) (int, error)
+	// AllocatePortInRange finds a free host TCP port within [start, end].
+	AllocatePortInRange(ctx context.Context, start, end int) (int, error)
 	InspectContainer(ctx context.Context, names ...string) (ContainerStatus, error)
 	StreamContainerLogs(ctx context.Context, tail int, follow bool, names []string, fn func(ContainerLogLine) error) error
 	Exec(ctx context.Context, opts ExecOptions, stdin io.Reader, stdout, stderr io.Writer) (exitCode int, err error)
@@ -140,7 +142,13 @@ func (s *StubClient) Stop(ctx context.Context, containerNames ...string) error {
 }
 
 func (s *StubClient) AllocatePort(ctx context.Context) (int, error) {
-	// MVP: deterministic stub port in high range.
-	s.logger.InfoContext(ctx, "stub allocate port")
-	return 18080, nil
+	return s.AllocatePortInRange(ctx, 18080, 18080)
+}
+
+func (s *StubClient) AllocatePortInRange(ctx context.Context, start, end int) (int, error) {
+	s.logger.InfoContext(ctx, "stub allocate port", "start", start, "end", end)
+	if start <= 0 {
+		start = 18080
+	}
+	return start, nil
 }

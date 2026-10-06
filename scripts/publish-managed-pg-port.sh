@@ -66,8 +66,9 @@ if ((${#EXTRA_PORTS[@]} == 0)); then
   done <<< "$rows"
 fi
 if ((${#EXTRA_PORTS[@]} == 0)); then
-  EXTRA_PORTS+=(18081)
-  log "No pdb_instances host_port — defaulting to 18081"
+  log "No pdb_instances host_port — nothing to publish externally (panel stays on 127.0.0.1:${PG_HOST_PORT})"
+  docker port "$CTR" || true
+  exit 0
 fi
 
 mapfile -t EXTRA_PORTS < <(printf '%s\n' "${EXTRA_PORTS[@]}" | awk -v panel="$PG_HOST_PORT" '
