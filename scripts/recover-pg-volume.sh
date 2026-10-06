@@ -275,7 +275,15 @@ compose run --rm -T migrate || \
 log "Recreating api + frontend..."
 compose up -d --force-recreate api frontend
 
-log "Force-publishing managed port via docker run (compose merge is unreliable)..."
+# Pin port into .env so base compose keeps publishing it on future upgrades.
+if grep -qE '^MANAGED_PG_HOST_PORT=' .env 2>/dev/null; then
+  tmp="$(mktemp)"
+  awk -v v="$EXTRA_PORT" '/^MANAGED_PG_HOST_PORT=/{print "MANAGED_PG_HOST_PORT="v; next} {print}' .env >"$tmp"
+  mv "$tmp" .env
+else
+  printf '\nMANAGED_PG_HOST_PORT=%s\n' "$EXTRA_PORT" >> .env
+fi
+log "Force-publishing managed port via docker run..."
 PUBLISH="${ROOT}/scripts/publish-managed-pg-port.sh"
 [[ -f "$PUBLISH" ]] || die "publish-managed-pg-port.sh missing"
 env BARN_INSTALL_DIR="$ROOT" DOCK_PILOT_INSTALL_DIR="$ROOT" bash "$PUBLISH" --port "$EXTRA_PORT"

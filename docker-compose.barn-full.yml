@@ -11,7 +11,10 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
       POSTGRES_DB: ${POSTGRES_DB:-barn}
     ports:
+      # Panel API (host network) — localhost only
       - "127.0.0.1:${POSTGRES_HOST_PORT:-5433}:5432"
+      # Managed DB apps — must be on the base compose file (override merge drops this on many hosts)
+      - "0.0.0.0:${MANAGED_PG_HOST_PORT:-18081}:5432"
     volumes:
       - barn_pg:/var/lib/postgresql/data
     healthcheck:
