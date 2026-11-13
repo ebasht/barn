@@ -157,6 +157,7 @@ func NewRouter(h Handlers, apiToken string, corsOrigins []string) http.Handler {
 				r.Get("/settings", h.Notifications.GetSettings)
 				r.Put("/settings", h.Notifications.UpdateSettings)
 				r.Post("/test", h.Notifications.SendTest)
+				r.Post("/relay", h.Notifications.Relay)
 				r.Get("/tunnel", h.Notifications.TunnelStatus)
 				r.Post("/tunnel/key", h.Notifications.GenerateTunnelKey)
 				r.Post("/tunnel/test-ssh", h.Notifications.TestTunnelSSH)

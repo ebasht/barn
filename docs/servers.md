@@ -58,6 +58,8 @@ See also [barn-agent.md](./barn-agent.md).
 - `master` — managed node enqueues events to Master outbox; Master dedups incidents and sends Telegram
 - `disabled` — no user alerts
 
+On Master, optional `notification_hub_node_id` selects a Barn panel in the group that owns the Telegram bot. Master (and fleet alerts routed via Master) POST `/api/notifications/relay` to that panel; the hub panel sends with its local bot. Empty / local node = Master’s own Telegram.
+
 ## Env
 
 | Variable | Default | Purpose |

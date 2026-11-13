@@ -486,6 +486,26 @@ export const en = {
     title: "Notifications",
     subtitle:
       "Send status of all sites and Postgres to Telegram: daily digest and alerts on incidents (container stopped, healthcheck, HTTP, or pg_isready failure).",
+    subtitleRouted:
+      "This panel forwards alerts to Master. A local Telegram bot is not required.",
+    subtitleViaHub:
+      "Telegram delivery goes through “{panel}”. Configure digests and incidents here; the bot lives on that panel.",
+    routeViaMaster:
+      "Alerts from this panel go to Master — no local Telegram bot needed.",
+    routeViaMasterHint:
+      "Master (or the hub panel selected there) sends Telegram. Change routing under Servers → Settings. If this panel is the group’s Telegram hub, open the bot form below.",
+    routeDisabled: "User alerts are disabled on this panel.",
+    routeDisabledHint:
+      "Enable local delivery or “Route via master” under Servers → Settings.",
+    routeViaHub: "Telegram is sent by panel “{panel}”.",
+    routeViaHubHint:
+      "Local bot token and chat are not used on Master. Configure the bot on the hub panel’s Notifications page.",
+    hubPanelFallback: "selected panel",
+    openServersSettings: "Open Servers → Settings",
+    showHubBotForm: "Configure bot (only if this panel is the Telegram hub)",
+    hideHubBotForm: "Hide hub bot settings",
+    hubBotFormHint:
+      "Needed only when Master selected this panel as “Telegram via panel”. Own alerts still go through Master.",
     tunnel: {
       title: "SSH tunnel for Telegram",
       subtitle: "A persistent SOCKS5 tunnel through a foreign VPS. The private key stays on the panel server.",
@@ -1123,10 +1143,16 @@ export const en = {
     publicUrlRequired: "Enter the public URL of this panel (e.g. https://pilot.example.com).",
     notificationMode: "Notifications",
     notification: {
-      local: "Local (this panel)",
-      master: "Route via master",
+      local: "Local (this panel’s Telegram bot)",
+      master: "Via master (no local bot)",
       disabled: "Disabled",
     },
+    notificationModeHint:
+      "“Via master” forwards alerts to Master — configure Telegram only on Master or its hub panel.",
+    notificationHub: "Telegram via panel",
+    notificationHubHint:
+      "Choose which Barn panel in the group sends Telegram. Only that panel needs a bot. Leave as this Master to use local Telegram.",
+    notificationHubLocal: "This Master (local Telegram)",
     managedSettings: "Managed node settings",
     nodeDisplayName: "Display name",
     masterUrl: "Master URL",

@@ -49,6 +49,21 @@ func (h *NotificationsHandler) SendTest(w http.ResponseWriter, r *http.Request) 
 	writeJSON(w, http.StatusOK, map[string]string{"status": "sent"})
 }
 
+func (h *NotificationsHandler) Relay(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		Text string `json:"text"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeError(w, notifpkg.ErrInvalidInput)
+		return
+	}
+	if err := h.notifications.RelayFromMaster(r.Context(), req.Text); err != nil {
+		writeError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]string{"status": "sent"})
+}
+
 func (h *NotificationsHandler) TunnelStatus(w http.ResponseWriter, r *http.Request) {
 	status, err := h.tunnel.Status(r.Context())
 	if err != nil {

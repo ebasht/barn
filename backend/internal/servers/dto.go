@@ -10,23 +10,25 @@ import (
 )
 
 type SettingsResponse struct {
-	Mode             string `json:"mode"`
-	NodeUID          string `json:"node_uid"`
-	NodeName         string `json:"node_name"`
-	PublicURL        string `json:"public_url"`
-	MasterURL        string `json:"master_url"`
-	NotificationMode string `json:"notification_mode"`
-	HasMasterToken   bool   `json:"has_master_token"`
+	Mode                  string  `json:"mode"`
+	NodeUID               string  `json:"node_uid"`
+	NodeName              string  `json:"node_name"`
+	PublicURL             string  `json:"public_url"`
+	MasterURL             string  `json:"master_url"`
+	NotificationMode      string  `json:"notification_mode"`
+	NotificationHubNodeID *string `json:"notification_hub_node_id,omitempty"`
+	HasMasterToken        bool    `json:"has_master_token"`
 }
 
 type UpdateSettingsRequest struct {
-	Mode             *string `json:"mode"`
-	NodeName         *string `json:"node_name"`
-	PublicURL        *string `json:"public_url"`
-	MasterURL        *string `json:"master_url"`
-	NotificationMode *string `json:"notification_mode"`
-	EnableMaster     *bool   `json:"enable_master"`
-	DisableMaster    *bool   `json:"disable_master"`
+	Mode                  *string `json:"mode"`
+	NodeName              *string `json:"node_name"`
+	PublicURL             *string `json:"public_url"`
+	MasterURL             *string `json:"master_url"`
+	NotificationMode      *string `json:"notification_mode"`
+	NotificationHubNodeID *string `json:"notification_hub_node_id"`
+	EnableMaster          *bool   `json:"enable_master"`
+	DisableMaster         *bool   `json:"disable_master"`
 }
 
 type MetricsDTO struct {

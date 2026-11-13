@@ -131,6 +131,7 @@ func main() {
 	)
 	notifSvc.SetLocalAlertGate(serversSvc)
 	notifSvc.SetServersEventSink(serversSvc)
+	notifSvc.SetHubRelay(serversSvc)
 	notifSvc.SetServerSummaryProvider(func(ctx context.Context) ([]notifications.ServerSummaryItem, bool, error) {
 		settings, err := serversSvc.GetSettings(ctx)
 		if err != nil {

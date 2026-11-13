@@ -196,13 +196,14 @@ func (s *Service) AcceptPair(ctx context.Context, req PairNodeRequest) (PairNode
 		name = "Node"
 	}
 	_, err = s.q.UpdateServersSettings(ctx, db.UpdateServersSettingsParams{
-		ID:                   1,
-		Mode:                 ModeManagedNode,
-		NodeName:             name,
-		PublicUrl:            settings.PublicUrl,
-		MasterUrl:            masterURL,
-		NotificationMode:     NotifyMaster,
-		EncryptedMasterToken: encMaster,
+		ID:                    1,
+		Mode:                  ModeManagedNode,
+		NodeName:              name,
+		PublicUrl:             settings.PublicUrl,
+		MasterUrl:             masterURL,
+		NotificationMode:      NotifyMaster,
+		EncryptedMasterToken:  encMaster,
+		NotificationHubNodeID: pgtype.UUID{},
 	})
 	if err != nil {
 		return PairNodeResponse{}, mapErr(err)
@@ -230,13 +231,14 @@ func (s *Service) DisconnectMaster(ctx context.Context) error {
 		return ErrForbidden
 	}
 	_, err = s.q.UpdateServersSettings(ctx, db.UpdateServersSettingsParams{
-		ID:                   1,
-		Mode:                 ModeStandalone,
-		NodeName:             settings.NodeName,
-		PublicUrl:            settings.PublicUrl,
-		MasterUrl:            "",
-		NotificationMode:     NotifyLocal,
-		EncryptedMasterToken: nil,
+		ID:                    1,
+		Mode:                  ModeStandalone,
+		NodeName:              settings.NodeName,
+		PublicUrl:             settings.PublicUrl,
+		MasterUrl:             "",
+		NotificationMode:      NotifyLocal,
+		EncryptedMasterToken:  nil,
+		NotificationHubNodeID: pgtype.UUID{},
 	})
 	return mapErr(err)
 }

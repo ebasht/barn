@@ -116,6 +116,7 @@ func (s *Service) ensureInstallSchema(ctx context.Context) error {
 		`ALTER TABLE servers_installations ADD COLUMN IF NOT EXISTS cert_email TEXT NOT NULL DEFAULT ''`,
 		`ALTER TABLE servers_installations ADD COLUMN IF NOT EXISTS display_name TEXT NOT NULL DEFAULT ''`,
 		`ALTER TABLE servers_node_billing ADD COLUMN IF NOT EXISTS alert_days INT NOT NULL DEFAULT 10`,
+		`ALTER TABLE servers_settings ADD COLUMN IF NOT EXISTS notification_hub_node_id UUID`,
 	}
 	for _, stmt := range stmts {
 		if _, err := s.pool.Exec(ctx, stmt); err != nil {
@@ -155,7 +156,7 @@ func (s *Service) GetSettings(ctx context.Context) (SettingsResponse, error) {
 	if err != nil {
 		return SettingsResponse{}, err
 	}
-	return SettingsResponse{
+	out := SettingsResponse{
 		Mode:             row.Mode,
 		NodeUID:          row.NodeUid.String(),
 		NodeName:         row.NodeName,
@@ -163,7 +164,12 @@ func (s *Service) GetSettings(ctx context.Context) (SettingsResponse, error) {
 		MasterURL:        row.MasterUrl,
 		NotificationMode: row.NotificationMode,
 		HasMasterToken:   len(row.EncryptedMasterToken) > 0,
-	}, nil
+	}
+	if row.NotificationHubNodeID.Valid {
+		id := uuid.UUID(row.NotificationHubNodeID.Bytes).String()
+		out.NotificationHubNodeID = &id
+	}
+	return out, nil
 }
 
 func (s *Service) UpdateSettings(ctx context.Context, req UpdateSettingsRequest) (SettingsResponse, error) {
@@ -178,6 +184,7 @@ func (s *Service) UpdateSettings(ctx context.Context, req UpdateSettingsRequest)
 	masterURL := row.MasterUrl
 	notifyMode := row.NotificationMode
 	encToken := row.EncryptedMasterToken
+	hubNodeID := row.NotificationHubNodeID
 
 	if req.EnableMaster != nil && *req.EnableMaster {
 		if mode == ModeManagedNode {
@@ -253,15 +260,38 @@ func (s *Service) UpdateSettings(ctx context.Context, req UpdateSettingsRequest)
 			return SettingsResponse{}, ErrInvalidInput
 		}
 	}
+	if req.NotificationHubNodeID != nil {
+		raw := strings.TrimSpace(*req.NotificationHubNodeID)
+		if raw == "" {
+			hubNodeID = pgtype.UUID{}
+		} else {
+			id, err := uuid.Parse(raw)
+			if err != nil {
+				return SettingsResponse{}, ErrInvalidInput
+			}
+			node, err := s.q.GetServersNode(ctx, id)
+			if err != nil {
+				return SettingsResponse{}, mapErr(err)
+			}
+			if !IsBarnPanel(node.ConnectionType) && node.ConnectionType != ConnLocal {
+				return SettingsResponse{}, fmt.Errorf("%w: notification hub must be a Barn panel", ErrInvalidInput)
+			}
+			hubNodeID = pgUUID(id)
+		}
+	}
+	if mode != ModeMaster {
+		hubNodeID = pgtype.UUID{}
+	}
 
 	updated, err := s.q.UpdateServersSettings(ctx, db.UpdateServersSettingsParams{
-		ID:                   1,
-		Mode:                 mode,
-		NodeName:             name,
-		PublicUrl:            publicURL,
-		MasterUrl:            masterURL,
-		NotificationMode:     notifyMode,
-		EncryptedMasterToken: encToken,
+		ID:                    1,
+		Mode:                  mode,
+		NodeName:              name,
+		PublicUrl:             publicURL,
+		MasterUrl:             masterURL,
+		NotificationMode:      notifyMode,
+		EncryptedMasterToken:  encToken,
+		NotificationHubNodeID: hubNodeID,
 	})
 	if err != nil {
 		return SettingsResponse{}, mapErr(err)

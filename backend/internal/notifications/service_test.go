@@ -48,6 +48,39 @@ func TestSendTextSkipsDisabledNotifications(t *testing.T) {
 	}
 }
 
+type testHubRelay struct {
+	handled bool
+	text    string
+	err     error
+}
+
+func (h *testHubRelay) RelayTelegram(_ context.Context, text string) (bool, error) {
+	h.text = text
+	return h.handled, h.err
+}
+
+func TestSendTextUsesHubRelayWhenHandled(t *testing.T) {
+	t.Parallel()
+
+	hub := &testHubRelay{handled: true}
+	svc := &Service{alertGate: testAlertGate(alertRouteLocal), hub: hub}
+	if err := svc.SendText(context.Background(), "via hub"); err != nil {
+		t.Fatalf("SendText() error = %v", err)
+	}
+	if hub.text != "via hub" {
+		t.Fatalf("hub text = %q", hub.text)
+	}
+}
+
+func TestRelayFromMasterRejectsEmpty(t *testing.T) {
+	t.Parallel()
+
+	svc := &Service{}
+	if err := svc.RelayFromMaster(context.Background(), "  "); err == nil {
+		t.Fatal("expected error for empty text")
+	}
+}
+
 func TestNotificationTitlesIncludePanelName(t *testing.T) {
 	t.Parallel()
 

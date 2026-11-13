@@ -17,6 +17,7 @@ const settings: ServersSettings = {
   public_url: "",
   master_url: "",
   notification_mode: "local",
+  notification_hub_node_id: null,
   has_master_token: false,
 };
 

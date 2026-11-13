@@ -10,7 +10,11 @@ import { ServerStatusPanel } from "@/components/ServerStatusPanel";
 import { api, ApiError } from "@/lib/api";
 import { useServersMode } from "@/lib/servers-mode";
 import { useI18n } from "@/lib/i18n/context";
-import type { ServersNotificationMode, ServersPairingCode } from "@/lib/types";
+import type {
+  ServerNode,
+  ServersNotificationMode,
+  ServersPairingCode,
+} from "@/lib/types";
 
 export default function ServersSettingsPage() {
   const { t, formatDateTime } = useI18n();
@@ -20,6 +24,8 @@ export default function ServersSettingsPage() {
   const [masterUrl, setMasterUrl] = useState("");
   const [notificationMode, setNotificationMode] =
     useState<ServersNotificationMode>("local");
+  const [hubNodeId, setHubNodeId] = useState("");
+  const [hubPanels, setHubPanels] = useState<ServerNode[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -36,7 +42,35 @@ export default function ServersSettingsPage() {
     );
     setMasterUrl(settings.master_url);
     setNotificationMode(settings.notification_mode);
+    setHubNodeId(settings.notification_hub_node_id || "");
   }, [settings]);
+
+  useEffect(() => {
+    if (!isMaster) {
+      setHubPanels([]);
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      try {
+        const nodes = await api.listServerNodes();
+        if (cancelled) return;
+        setHubPanels(
+          nodes.filter(
+            (n) =>
+              n.connection_type === "local" ||
+              n.connection_type === "barn" ||
+              n.connection_type === "dockpilot",
+          ),
+        );
+      } catch {
+        if (!cancelled) setHubPanels([]);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [isMaster, settings.mode]);
 
   const save = useCallback(
     async (body: Parameters<typeof api.updateServersSettings>[0]) => {
@@ -62,6 +96,7 @@ export default function ServersSettingsPage() {
       node_name: nodeName.trim(),
       public_url: publicUrl.trim(),
       notification_mode: notificationMode,
+      notification_hub_node_id: hubNodeId,
     });
   };
 
@@ -305,6 +340,29 @@ export default function ServersSettingsPage() {
               <option value="disabled">{t("servers.notification.disabled")}</option>
             </select>
           </div>
+          <div className="field">
+            <label className="label" htmlFor="notify-hub">
+              {t("servers.notificationHub")}
+            </label>
+            <select
+              id="notify-hub"
+              className="input"
+              value={hubNodeId}
+              onChange={(e) => setHubNodeId(e.target.value)}
+            >
+              <option value="">{t("servers.notificationHubLocal")}</option>
+              {hubPanels
+                .filter((n) => n.connection_type !== "local")
+                .map((n) => (
+                  <option key={n.id} value={n.id}>
+                    {n.name}
+                  </option>
+                ))}
+            </select>
+            <p className="muted" style={{ fontSize: "0.8rem", marginTop: "0.35rem" }}>
+              {t("servers.notificationHubHint")}
+            </p>
+          </div>
           <div className="form-actions">
             <button type="submit" className="btn" disabled={busy}>
               {busy ? t("common.saving") : t("common.save")}
@@ -364,6 +422,9 @@ export default function ServersSettingsPage() {
                 <option value="master">{t("servers.notification.master")}</option>
                 <option value="disabled">{t("servers.notification.disabled")}</option>
               </select>
+              <p className="muted" style={{ fontSize: "0.8rem", marginTop: "0.35rem" }}>
+                {t("servers.notificationModeHint")}
+              </p>
             </div>
             <div className="form-actions">
               <button type="submit" className="btn" disabled={busy}>

@@ -336,16 +336,17 @@ type ServersRegistrationToken struct {
 }
 
 type ServersSetting struct {
-	ID                   int32     `json:"id"`
-	Mode                 string    `json:"mode"`
-	NodeUid              uuid.UUID `json:"node_uid"`
-	NodeName             string    `json:"node_name"`
-	PublicUrl            string    `json:"public_url"`
-	MasterUrl            string    `json:"master_url"`
-	NotificationMode     string    `json:"notification_mode"`
-	EncryptedMasterToken []byte    `json:"encrypted_master_token"`
-	CreatedAt            time.Time `json:"created_at"`
-	UpdatedAt            time.Time `json:"updated_at"`
+	ID                    int32       `json:"id"`
+	Mode                  string      `json:"mode"`
+	NodeUid               uuid.UUID   `json:"node_uid"`
+	NodeName              string      `json:"node_name"`
+	PublicUrl             string      `json:"public_url"`
+	MasterUrl             string      `json:"master_url"`
+	NotificationMode      string      `json:"notification_mode"`
+	NotificationHubNodeID pgtype.UUID `json:"notification_hub_node_id"`
+	EncryptedMasterToken  []byte      `json:"encrypted_master_token"`
+	CreatedAt             time.Time   `json:"created_at"`
+	UpdatedAt             time.Time   `json:"updated_at"`
 }
 
 type ServersSnapshot struct {

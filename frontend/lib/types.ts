@@ -593,6 +593,7 @@ export interface ServersSettings {
   public_url: string;
   master_url: string;
   notification_mode: ServersNotificationMode;
+  notification_hub_node_id?: string | null;
   has_master_token: boolean;
 }
 
@@ -602,6 +603,7 @@ export interface UpdateServersSettingsRequest {
   public_url?: string;
   master_url?: string;
   notification_mode?: ServersNotificationMode;
+  notification_hub_node_id?: string | null;
   enable_master?: boolean;
   disable_master?: boolean;
 }

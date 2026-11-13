@@ -245,6 +245,8 @@ CREATE TABLE servers_settings (
     master_url TEXT NOT NULL DEFAULT '',
     notification_mode TEXT NOT NULL DEFAULT 'local'
         CHECK (notification_mode IN ('local', 'master', 'disabled')),
+    -- On Master: which Barn panel owns Telegram delivery (NULL = this Master).
+    notification_hub_node_id UUID REFERENCES servers_nodes(id) ON DELETE SET NULL,
     encrypted_master_token BYTEA,
     created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT now()

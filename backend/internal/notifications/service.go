@@ -23,6 +23,12 @@ type LocalAlertGate interface {
 	LocalAlertRoute(ctx context.Context) string
 }
 
+// HubRelay optionally delivers Telegram via another Barn panel in the Master group.
+// handled=false means the caller should send with the local bot.
+type HubRelay interface {
+	RelayTelegram(ctx context.Context, text string) (handled bool, err error)
+}
+
 const (
 	alertRouteLocal    = "local"
 	alertRouteMaster   = "master"
@@ -36,6 +42,7 @@ type Service struct {
 	pgdb          *pgdb.Service
 	telegram      *TelegramClient
 	alertGate     LocalAlertGate
+	hub           HubRelay
 	serversEvents ServersEventSink
 	defaultName   func(context.Context) string
 	serverSummary func(context.Context) ([]ServerSummaryItem, bool, error)
@@ -65,6 +72,10 @@ func NewService(queries *db.Queries, cipher *secrets.Cipher, sites *sitesvc.Serv
 
 func (s *Service) SetLocalAlertGate(g LocalAlertGate) {
 	s.alertGate = g
+}
+
+func (s *Service) SetHubRelay(hub HubRelay) {
+	s.hub = hub
 }
 
 func (s *Service) SetServersEventSink(sink ServersEventSink) {
@@ -179,8 +190,8 @@ func (s *Service) SetTelegramProxy(ctx context.Context, proxyURL string) (Settin
 }
 
 func (s *Service) SendTest(ctx context.Context) error {
-	settings, token, err := s.loadTelegramConfig(ctx)
-	if err != nil {
+	settings, _, err := s.loadTelegramConfig(ctx)
+	if err != nil && !errors.Is(err, ErrNotConfigured) {
 		return err
 	}
 	items, names, err := s.collectDigestItems(ctx)
@@ -192,10 +203,7 @@ func (s *Service) SendTest(ctx context.Context) error {
 		return err
 	}
 	text := formatDigest(settings.DailyDigestMode, s.panelName(ctx, settings.PanelName), items, names, servers, time.Now().UTC(), settings.DailyDigestTimezone)
-	if err := s.telegram.SendMessage(ctx, token, settings.TelegramChatID, text, settings.TelegramHttpProxy); err != nil {
-		return fmt.Errorf("telegram: %w", err)
-	}
-	return nil
+	return s.SendText(ctx, text)
 }
 
 // SendText sends an arbitrary message using the configured Telegram bot (if enabled).
@@ -209,7 +217,35 @@ func (s *Service) SendText(ctx context.Context, text string) error {
 	case alertRouteDisabled:
 		return nil
 	}
+	return s.deliverUserTelegram(ctx, text)
+}
 
+// deliverUserTelegram sends via the Master notification hub panel when configured,
+// otherwise via this panel's Telegram bot.
+func (s *Service) deliverUserTelegram(ctx context.Context, text string) error {
+	if s.hub != nil {
+		handled, err := s.hub.RelayTelegram(ctx, text)
+		if err != nil {
+			return err
+		}
+		if handled {
+			return nil
+		}
+	}
+	return s.sendLocalTelegram(ctx, text)
+}
+
+// RelayFromMaster accepts a Telegram message from Master (notification hub).
+// Always uses this panel's local bot — never re-routes to Master/hub.
+func (s *Service) RelayFromMaster(ctx context.Context, text string) error {
+	text = strings.TrimSpace(text)
+	if text == "" {
+		return fmt.Errorf("%w: empty text", ErrInvalidInput)
+	}
+	return s.sendLocalTelegram(ctx, text)
+}
+
+func (s *Service) sendLocalTelegram(ctx context.Context, text string) error {
 	settings, token, err := s.loadTelegramConfig(ctx)
 	if err != nil {
 		return err
@@ -224,12 +260,13 @@ func (s *Service) RunCheck(ctx context.Context) error {
 	route := s.localAlertRoute(ctx)
 	suppress := route != alertRouteLocal
 
-	settings, token, err := s.loadTelegramConfig(ctx)
+	settings, _, err := s.loadTelegramConfig(ctx)
 	if err != nil {
 		if !errors.Is(err, ErrNotConfigured) {
 			return err
 		}
-		if !suppress {
+		// Local bot may be unset when Master relays through a hub panel.
+		if !suppress && s.hub == nil {
 			return nil
 		}
 		// settings still holds the row when Telegram is merely unconfigured
@@ -248,7 +285,7 @@ func (s *Service) RunCheck(ctx context.Context) error {
 			return err
 		}
 		msg := formatDigest(settings.DailyDigestMode, s.panelName(ctx, settings.PanelName), digestItems, names, servers, now, settings.DailyDigestTimezone)
-		if err := s.telegram.SendMessage(ctx, token, settings.TelegramChatID, msg, settings.TelegramHttpProxy); err != nil {
+		if err := s.deliverUserTelegram(ctx, msg); err != nil {
 			return fmt.Errorf("daily digest: %w", err)
 		}
 		if err := s.queries.UpdateNotificationLastDailySent(ctx, pgtype.Timestamptz{Time: now, Valid: true}); err != nil {
@@ -278,7 +315,7 @@ func (s *Service) RunCheck(ctx context.Context) error {
 				continue
 			}
 			msg := formatIncident(s.panelName(ctx, settings.PanelName), name, item)
-			if err := s.telegram.SendMessage(ctx, token, settings.TelegramChatID, msg, settings.TelegramHttpProxy); err != nil {
+			if err := s.deliverUserTelegram(ctx, msg); err != nil {
 				return fmt.Errorf("incident alert: %w", err)
 			}
 		}

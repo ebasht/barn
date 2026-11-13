@@ -625,7 +625,7 @@ func (q *Queries) GetServersNodeByUID(ctx context.Context, nodeUid uuid.UUID) (S
 }
 
 const getServersSettings = `-- name: GetServersSettings :one
-SELECT id, mode, node_uid, node_name, public_url, master_url, notification_mode, encrypted_master_token, created_at, updated_at FROM servers_settings WHERE id = 1
+SELECT id, mode, node_uid, node_name, public_url, master_url, notification_mode, notification_hub_node_id, encrypted_master_token, created_at, updated_at FROM servers_settings WHERE id = 1
 `
 
 func (q *Queries) GetServersSettings(ctx context.Context) (ServersSetting, error) {
@@ -639,6 +639,7 @@ func (q *Queries) GetServersSettings(ctx context.Context) (ServersSetting, error
 		&i.PublicUrl,
 		&i.MasterUrl,
 		&i.NotificationMode,
+		&i.NotificationHubNodeID,
 		&i.EncryptedMasterToken,
 		&i.CreatedAt,
 		&i.UpdatedAt,
@@ -1645,19 +1646,21 @@ UPDATE servers_settings SET
     master_url = $5,
     notification_mode = $6,
     encrypted_master_token = $7,
+    notification_hub_node_id = $8,
     updated_at = now()
 WHERE id = $1
-RETURNING id, mode, node_uid, node_name, public_url, master_url, notification_mode, encrypted_master_token, created_at, updated_at
+RETURNING id, mode, node_uid, node_name, public_url, master_url, notification_mode, notification_hub_node_id, encrypted_master_token, created_at, updated_at
 `
 
 type UpdateServersSettingsParams struct {
-	ID                   int32  `json:"id"`
-	Mode                 string `json:"mode"`
-	NodeName             string `json:"node_name"`
-	PublicUrl            string `json:"public_url"`
-	MasterUrl            string `json:"master_url"`
-	NotificationMode     string `json:"notification_mode"`
-	EncryptedMasterToken []byte `json:"encrypted_master_token"`
+	ID                    int32       `json:"id"`
+	Mode                  string      `json:"mode"`
+	NodeName              string      `json:"node_name"`
+	PublicUrl             string      `json:"public_url"`
+	MasterUrl             string      `json:"master_url"`
+	NotificationMode      string      `json:"notification_mode"`
+	EncryptedMasterToken  []byte      `json:"encrypted_master_token"`
+	NotificationHubNodeID pgtype.UUID `json:"notification_hub_node_id"`
 }
 
 func (q *Queries) UpdateServersSettings(ctx context.Context, arg UpdateServersSettingsParams) (ServersSetting, error) {
@@ -1669,6 +1672,7 @@ func (q *Queries) UpdateServersSettings(ctx context.Context, arg UpdateServersSe
 		arg.MasterUrl,
 		arg.NotificationMode,
 		arg.EncryptedMasterToken,
+		arg.NotificationHubNodeID,
 	)
 	var i ServersSetting
 	err := row.Scan(
@@ -1679,6 +1683,7 @@ func (q *Queries) UpdateServersSettings(ctx context.Context, arg UpdateServersSe
 		&i.PublicUrl,
 		&i.MasterUrl,
 		&i.NotificationMode,
+		&i.NotificationHubNodeID,
 		&i.EncryptedMasterToken,
 		&i.CreatedAt,
 		&i.UpdatedAt,

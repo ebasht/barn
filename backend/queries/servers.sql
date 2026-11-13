@@ -9,6 +9,7 @@ UPDATE servers_settings SET
     master_url = $5,
     notification_mode = $6,
     encrypted_master_token = $7,
+    notification_hub_node_id = $8,
     updated_at = now()
 WHERE id = $1
 RETURNING *;

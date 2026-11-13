@@ -487,6 +487,26 @@ export const ru: Messages = {
     title: "Уведомления",
     subtitle:
       "Отправка статуса всех сайтов и Postgres в Telegram: ежедневный отчёт и оповещение при аварии (контейнер остановлен, healthcheck, HTTP или pg_isready).",
+    subtitleRouted:
+      "Эта панель пересылает алерты на Master. Локальный Telegram-бот не нужен.",
+    subtitleViaHub:
+      "Отправка в Telegram идёт через «{panel}». Дайджесты и инциденты настраиваются здесь; бот — на той панели.",
+    routeViaMaster:
+      "Алерты с этой панели идут на Master — локальный Telegram-бот не нужен.",
+    routeViaMasterHint:
+      "В Telegram пишет Master (или выбранная там hub-панель). Маршрут меняется в Servers → Settings. Если эта панель — Telegram-hub группы, откройте форму бота ниже.",
+    routeDisabled: "Пользовательские алерты на этой панели выключены.",
+    routeDisabledHint:
+      "Включите локальную доставку или «Через master» в Servers → Settings.",
+    routeViaHub: "Telegram отправляет панель «{panel}».",
+    routeViaHubHint:
+      "Токен и chat на Master не используются. Настройте бота на странице Уведомления hub-панели.",
+    hubPanelFallback: "выбранная панель",
+    openServersSettings: "Открыть Servers → Settings",
+    showHubBotForm: "Настроить бота (только если эта панель — Telegram-hub)",
+    hideHubBotForm: "Скрыть настройки hub-бота",
+    hubBotFormHint:
+      "Нужно только если на Master эта панель выбрана как «Telegram через панель». Свои алерты по-прежнему идут через Master.",
     tunnel: {
       title: "SSH-туннель для Telegram",
       subtitle: "Постоянный SOCKS5-туннель через зарубежный VPS. Приватный ключ остаётся на сервере с панелью.",
@@ -1127,10 +1147,16 @@ export const ru: Messages = {
     publicUrlRequired: "Укажите публичный URL этой панели (например https://pilot.example.com).",
     notificationMode: "Уведомления",
     notification: {
-      local: "Локально (эта панель)",
-      master: "Через master",
+      local: "Локально (бот этой панели)",
+      master: "Через master (без локального бота)",
       disabled: "Выключены",
     },
+    notificationModeHint:
+      "«Через master» — алерты уходят на Master; Telegram настраивается только на Master или его hub-панели.",
+    notificationHub: "Telegram через панель",
+    notificationHubHint:
+      "Выберите панель Barn в группе, которая отправляет Telegram. Бот нужен только на ней. Оставьте Master — локальный Telegram.",
+    notificationHubLocal: "Этот Master (локальный Telegram)",
     managedSettings: "Настройки managed node",
     nodeDisplayName: "Отображаемое имя",
     masterUrl: "URL master",
