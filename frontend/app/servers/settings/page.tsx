@@ -95,7 +95,6 @@ export default function ServersSettingsPage() {
     await save({
       node_name: nodeName.trim(),
       public_url: publicUrl.trim(),
-      notification_mode: notificationMode,
       notification_hub_node_id: hubNodeId,
     });
   };
@@ -322,23 +321,6 @@ export default function ServersSettingsPage() {
             <p className="muted" style={{ fontSize: "0.8rem", marginTop: "0.35rem" }}>
               {t("servers.publicUrlHint")}
             </p>
-          </div>
-          <div className="field">
-            <label className="label" htmlFor="notify-mode">
-              {t("servers.notificationMode")}
-            </label>
-            <select
-              id="notify-mode"
-              className="input"
-              value={notificationMode}
-              onChange={(e) =>
-                setNotificationMode(e.target.value as ServersNotificationMode)
-              }
-            >
-              <option value="local">{t("servers.notification.local")}</option>
-              <option value="master">{t("servers.notification.master")}</option>
-              <option value="disabled">{t("servers.notification.disabled")}</option>
-            </select>
           </div>
           <div className="field">
             <label className="label" htmlFor="notify-hub">

@@ -7,7 +7,6 @@ import { browserTimezone, listTimezones, resolveDigestTimezone } from "@/lib/tim
 import { useI18n } from "@/lib/i18n/context";
 import { useServersMode } from "@/lib/servers-mode";
 import type { NotificationSettings, UpdateNotificationSettings } from "@/lib/types";
-import TelegramTunnelCard from "@/components/TelegramTunnelCard";
 
 export default function NotificationsPage() {
   const { t } = useI18n();
@@ -25,7 +24,6 @@ export default function NotificationsPage() {
   const [panelName, setPanelName] = useState("");
   const [enabled, setEnabled] = useState(false);
   const [telegramChatID, setTelegramChatID] = useState("");
-  const [telegramHTTPProxy, setTelegramHTTPProxy] = useState("");
   const [telegramBotToken, setTelegramBotToken] = useState("");
   const [tokenSet, setTokenSet] = useState(false);
   const [clearToken, setClearToken] = useState(false);
@@ -59,7 +57,6 @@ export default function NotificationsPage() {
       setPanelName(s.panel_name);
       setEnabled(s.enabled);
       setTelegramChatID(s.telegram_chat_id);
-      setTelegramHTTPProxy(s.telegram_http_proxy ?? "");
       setTokenSet(s.telegram_bot_token_set);
       setDailyDigestMode(s.daily_digest_mode ?? "detailed");
       setDailyDigestEnabled(s.daily_digest_enabled);
@@ -105,7 +102,8 @@ export default function NotificationsPage() {
     panel_name: panelName.trim(),
     enabled,
     telegram_chat_id: telegramChatID.trim(),
-    telegram_http_proxy: telegramHTTPProxy.trim(),
+    // Preserve stored proxy; field removed from UI.
+    telegram_http_proxy: settings?.telegram_http_proxy ?? "",
     daily_digest_mode: dailyDigestMode,
     daily_digest_enabled: dailyDigestEnabled,
     daily_digest_hour: dailyDigestHour,
@@ -150,7 +148,6 @@ export default function NotificationsPage() {
         (telegramBotToken.trim() ||
           panelName.trim() !== settings.panel_name ||
           telegramChatID.trim() !== settings.telegram_chat_id ||
-          telegramHTTPProxy.trim() !== (settings.telegram_http_proxy ?? "") ||
           enabled !== settings.enabled ||
           dailyDigestMode !== (settings.daily_digest_mode ?? "detailed") ||
           dailyDigestEnabled !== settings.daily_digest_enabled ||
@@ -229,24 +226,6 @@ export default function NotificationsPage() {
         />
         <p style={{ color: "var(--muted)", fontSize: "0.8125rem", margin: "0.35rem 0 0" }}>
           {t("notifications.chatIdHint")}
-        </p>
-      </div>
-
-      <div className="field">
-        <label className="label" htmlFor="telegram-proxy">
-          {t("notifications.proxy")}
-        </label>
-        <input
-          id="telegram-proxy"
-          className="input"
-          type="url"
-          autoComplete="off"
-          placeholder="socks5://127.0.0.1:1080"
-          value={telegramHTTPProxy}
-          onChange={(e) => setTelegramHTTPProxy(e.target.value)}
-        />
-        <p style={{ color: "var(--muted)", fontSize: "0.8125rem", margin: "0.35rem 0 0" }}>
-          {t("notifications.proxyHint")}
         </p>
       </div>
     </>
@@ -394,17 +373,14 @@ export default function NotificationsPage() {
               {t("notifications.hubBotFormHint")}
             </p>
             {showHubBotForm && (
-              <>
-                <TelegramTunnelCard onProxyConfigured={() => void load()} />
-                <form onSubmit={handleSave} style={{ marginTop: "1rem" }}>
-                  {renderBotFields()}
-                  <div style={{ display: "flex", gap: "0.75rem", marginTop: "1.25rem", flexWrap: "wrap" }}>
-                    <button type="submit" className="btn" disabled={saving}>
-                      {saving ? t("common.saving") : t("common.save")}
-                    </button>
-                  </div>
-                </form>
-              </>
+              <form onSubmit={handleSave} style={{ marginTop: "1rem" }}>
+                {renderBotFields()}
+                <div style={{ display: "flex", gap: "0.75rem", marginTop: "1.25rem", flexWrap: "wrap" }}>
+                  <button type="submit" className="btn" disabled={saving}>
+                    {saving ? t("common.saving") : t("common.save")}
+                  </button>
+                </div>
+              </form>
             )}
           </div>
         )}
@@ -443,10 +419,6 @@ export default function NotificationsPage() {
             <Link href="/servers/settings">{t("notifications.openServersSettings")}</Link>
           </p>
         </div>
-      )}
-
-      {localBotRequired && (
-        <TelegramTunnelCard onProxyConfigured={() => void load()} />
       )}
 
       <form onSubmit={handleSave} className="card" style={{ marginTop: "1rem" }}>
