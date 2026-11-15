@@ -29,6 +29,23 @@ type HubRelay interface {
 	RelayTelegram(ctx context.Context, text string) (handled bool, err error)
 }
 
+// FleetTestInfo is Master's view of notification routing for a fleet Telegram test.
+type FleetTestInfo struct {
+	MasterName   string
+	HubName      string
+	HubIsLocal   bool
+	ViaMaster    []string
+	Local        []string
+	Disabled     []string
+	Unreachable  []string
+	DeliveryHint string
+}
+
+// FleetTestProvider supplies Master fleet routing for SendTest.
+type FleetTestProvider interface {
+	CollectFleetNotificationTest(ctx context.Context) (info FleetTestInfo, isMaster bool, err error)
+}
+
 const (
 	alertRouteLocal    = "local"
 	alertRouteMaster   = "master"
@@ -43,6 +60,7 @@ type Service struct {
 	telegram      *TelegramClient
 	alertGate     LocalAlertGate
 	hub           HubRelay
+	fleet         FleetTestProvider
 	serversEvents ServersEventSink
 	defaultName   func(context.Context) string
 	serverSummary func(context.Context) ([]ServerSummaryItem, bool, error)
@@ -76,6 +94,10 @@ func (s *Service) SetLocalAlertGate(g LocalAlertGate) {
 
 func (s *Service) SetHubRelay(hub HubRelay) {
 	s.hub = hub
+}
+
+func (s *Service) SetFleetTestProvider(p FleetTestProvider) {
+	s.fleet = p
 }
 
 func (s *Service) SetServersEventSink(sink ServersEventSink) {
@@ -189,21 +211,87 @@ func (s *Service) SetTelegramProxy(ctx context.Context, proxyURL string) (Settin
 	return s.toSettingsResponse(ctx, row), nil
 }
 
-func (s *Service) SendTest(ctx context.Context) error {
+// TestSendResult is returned by SendTest for UI feedback.
+type TestSendResult struct {
+	Status      string   `json:"status"`
+	Kind        string   `json:"kind"` // "fleet" | "local"
+	Hub         string   `json:"hub,omitempty"`
+	ViaMaster   []string `json:"via_master,omitempty"`
+	Local       []string `json:"local,omitempty"`
+	Disabled    []string `json:"disabled,omitempty"`
+	Unreachable []string `json:"unreachable,omitempty"`
+}
+
+func (s *Service) SendTest(ctx context.Context) (TestSendResult, error) {
+	if s.fleet != nil {
+		info, isMaster, err := s.fleet.CollectFleetNotificationTest(ctx)
+		if err != nil {
+			return TestSendResult{}, err
+		}
+		if isMaster {
+			text := formatFleetTestMessage(info)
+			if err := s.deliverUserTelegram(ctx, text); err != nil {
+				return TestSendResult{}, err
+			}
+			return TestSendResult{
+				Status:      "sent",
+				Kind:        "fleet",
+				Hub:         info.HubName,
+				ViaMaster:   info.ViaMaster,
+				Local:       info.Local,
+				Disabled:    info.Disabled,
+				Unreachable: info.Unreachable,
+			}, nil
+		}
+	}
+
 	settings, _, err := s.loadTelegramConfig(ctx)
 	if err != nil && !errors.Is(err, ErrNotConfigured) {
-		return err
+		return TestSendResult{}, err
 	}
 	items, names, err := s.collectDigestItems(ctx)
 	if err != nil {
-		return err
+		return TestSendResult{}, err
 	}
 	servers, err := s.collectServerSummary(ctx)
 	if err != nil {
-		return err
+		return TestSendResult{}, err
 	}
 	text := formatDigest(settings.DailyDigestMode, s.panelName(ctx, settings.PanelName), items, names, servers, time.Now().UTC(), settings.DailyDigestTimezone)
-	return s.SendText(ctx, text)
+	if err := s.SendText(ctx, text); err != nil {
+		return TestSendResult{}, err
+	}
+	return TestSendResult{Status: "sent", Kind: "local"}, nil
+}
+
+func formatFleetTestMessage(info FleetTestInfo) string {
+	var b strings.Builder
+	b.WriteString("<b>Barn — fleet notification test</b>\n")
+	b.WriteString("Master: ")
+	b.WriteString(escapeHTML(info.MasterName))
+	b.WriteString("\nDelivery: ")
+	b.WriteString(escapeHTML(info.DeliveryHint))
+	b.WriteString("\n")
+	writeFleetList(&b, "Via master (→ hub)", info.ViaMaster)
+	writeFleetList(&b, "Local bot on panel", info.Local)
+	writeFleetList(&b, "Disabled", info.Disabled)
+	writeFleetList(&b, "Unreachable", info.Unreachable)
+	b.WriteString("\nIf you see this in Telegram, hub delivery works.")
+	return b.String()
+}
+
+func writeFleetList(b *strings.Builder, title string, names []string) {
+	if len(names) == 0 {
+		return
+	}
+	b.WriteString("\n<b>")
+	b.WriteString(escapeHTML(title))
+	b.WriteString("</b>\n")
+	for _, name := range names {
+		b.WriteString("• ")
+		b.WriteString(escapeHTML(name))
+		b.WriteString("\n")
+	}
 }
 
 // SendText sends an arbitrary message using the configured Telegram bot (if enabled).

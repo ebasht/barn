@@ -42,11 +42,12 @@ func (h *NotificationsHandler) UpdateSettings(w http.ResponseWriter, r *http.Req
 }
 
 func (h *NotificationsHandler) SendTest(w http.ResponseWriter, r *http.Request) {
-	if err := h.notifications.SendTest(r.Context()); err != nil {
+	result, err := h.notifications.SendTest(r.Context())
+	if err != nil {
 		writeError(w, err)
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]string{"status": "sent"})
+	writeJSON(w, http.StatusOK, result)
 }
 
 func (h *NotificationsHandler) Relay(w http.ResponseWriter, r *http.Request) {

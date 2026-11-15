@@ -132,6 +132,7 @@ func main() {
 	notifSvc.SetLocalAlertGate(serversSvc)
 	notifSvc.SetServersEventSink(serversSvc)
 	notifSvc.SetHubRelay(serversSvc)
+	notifSvc.SetFleetTestProvider(fleetNotificationTestAdapter{serversSvc})
 	notifSvc.SetServerSummaryProvider(func(ctx context.Context) ([]notifications.ServerSummaryItem, bool, error) {
 		settings, err := serversSvc.GetSettings(ctx)
 		if err != nil {
@@ -209,4 +210,25 @@ func main() {
 		logger.Error("shutdown", "error", err)
 	}
 	logger.Info("server stopped")
+}
+
+type fleetNotificationTestAdapter struct {
+	svc *servers.Service
+}
+
+func (a fleetNotificationTestAdapter) CollectFleetNotificationTest(ctx context.Context) (notifications.FleetTestInfo, bool, error) {
+	info, isMaster, err := a.svc.CollectFleetNotificationTest(ctx)
+	if err != nil || !isMaster {
+		return notifications.FleetTestInfo{}, isMaster, err
+	}
+	return notifications.FleetTestInfo{
+		MasterName:   info.MasterName,
+		HubName:      info.HubName,
+		HubIsLocal:   info.HubIsLocal,
+		ViaMaster:    info.ViaMaster,
+		Local:        info.Local,
+		Disabled:     info.Disabled,
+		Unreachable:  info.Unreachable,
+		DeliveryHint: info.DeliveryHint,
+	}, true, nil
 }

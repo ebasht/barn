@@ -60,6 +60,8 @@ See also [barn-agent.md](./barn-agent.md).
 
 On Master, optional `notification_hub_node_id` selects a Barn panel in the group that owns the Telegram bot. Master (and fleet alerts routed via Master) POST `/api/notifications/relay` to that panel; the hub panel sends with its local bot. Empty / local node = Master’s own Telegram.
 
+Master `POST /api/notifications/test` sends a fleet test through that hub and lists remote Barn panels whose `notification_mode` is `master`.
+
 ## Env
 
 | Variable | Default | Purpose |

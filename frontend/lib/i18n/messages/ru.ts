@@ -533,6 +533,14 @@ export const ru: Messages = {
     useBrowserTimezone: "Взять из этого браузера ({tz})",
     alertOnIncident: "Оповещать при аварии (статус unhealthy или degraded)",
     sendTest: "Отправить тест",
+    sendFleetTest: "Отправить тест флота в Telegram",
+    fleetTestTitle: "Тест Telegram флота",
+    fleetTestHint:
+      "Одно сообщение уходит через выбранную Telegram-панель. В тексте — Master и все панели Barn с маршрутом «через master».",
+    fleetTestSent: "Тест флота отправлен в Telegram",
+    fleetTestHub: "Доставка через «{panel}».",
+    fleetTestViaMaster: "Через master: {list}.",
+    fleetTestViaMasterNone: "Нет удалённых панелей с маршрутом через Master.",
     sending: "Отправка…",
   },
   backups: {

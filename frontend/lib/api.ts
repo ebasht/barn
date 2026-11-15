@@ -255,7 +255,15 @@ export const api = {
     }),
 
   sendNotificationTest: () =>
-    request<{ status: string }>("/api/notifications/test", { method: "POST" }),
+    request<{
+      status: string;
+      kind: "fleet" | "local";
+      hub?: string;
+      via_master?: string[];
+      local?: string[];
+      disabled?: string[];
+      unreachable?: string[];
+    }>("/api/notifications/test", { method: "POST" }),
 
   startSiteContainer: (id: string) =>
     request<ContainerActionResult>(`/api/sites/${id}/container/start`, { method: "POST" }),

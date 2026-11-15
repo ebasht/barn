@@ -18,6 +18,7 @@ export default function NotificationsPage() {
   const [saving, setSaving] = useState(false);
   const [testing, setTesting] = useState(false);
   const [testOk, setTestOk] = useState(false);
+  const [testSummary, setTestSummary] = useState<string | null>(null);
   const [hubPanelName, setHubPanelName] = useState<string | null>(null);
   const [showHubBotForm, setShowHubBotForm] = useState(false);
 
@@ -140,10 +141,12 @@ export default function NotificationsPage() {
   const handleTest = async () => {
     setTesting(true);
     setTestOk(false);
+    setTestSummary(null);
     setSaved(false);
     setError(null);
     try {
       if (
+        !isMaster &&
         settings &&
         (telegramBotToken.trim() ||
           panelName.trim() !== settings.panel_name ||
@@ -161,8 +164,23 @@ export default function NotificationsPage() {
         setTokenSet(updated.telegram_bot_token_set);
         setDailyDigestTimezone(resolveDigestTimezone(updated.daily_digest_timezone));
       }
-      await api.sendNotificationTest();
+      const result = await api.sendNotificationTest();
       setTestOk(true);
+      if (result.kind === "fleet") {
+        const parts = [
+          result.hub
+            ? t("notifications.fleetTestHub", { panel: result.hub })
+            : null,
+          result.via_master?.length
+            ? t("notifications.fleetTestViaMaster", {
+                list: result.via_master.join(", "),
+              })
+            : t("notifications.fleetTestViaMasterNone"),
+        ].filter(Boolean);
+        setTestSummary(parts.join(" "));
+      } else {
+        setTestSummary(null);
+      }
     } catch (err) {
       setError(err instanceof ApiError ? err.message : t("notifications.testFailed"));
     } finally {
@@ -402,7 +420,16 @@ export default function NotificationsPage() {
       {error && <div className="alert alert-error">{error}</div>}
       {saved && <div className="alert alert-success">{t("notifications.saved")}</div>}
       {testOk && (
-        <div className="alert alert-success">{t("notifications.testSent")}</div>
+        <div className="alert alert-success">
+          <p style={{ margin: 0 }}>
+            {isMaster ? t("notifications.fleetTestSent") : t("notifications.testSent")}
+          </p>
+          {testSummary && (
+            <p className="muted" style={{ margin: "0.5rem 0 0", fontSize: "0.875rem" }}>
+              {testSummary}
+            </p>
+          )}
+        </div>
       )}
 
       {usesRemoteHub && (
@@ -418,6 +445,23 @@ export default function NotificationsPage() {
           <p style={{ margin: "0.75rem 0 0" }}>
             <Link href="/servers/settings">{t("notifications.openServersSettings")}</Link>
           </p>
+        </div>
+      )}
+
+      {isMaster && (
+        <div className="card" style={{ marginTop: "1rem" }}>
+          <h2 className="section-title">{t("notifications.fleetTestTitle")}</h2>
+          <p className="muted" style={{ marginTop: 0 }}>
+            {t("notifications.fleetTestHint")}
+          </p>
+          <button
+            type="button"
+            className="btn"
+            disabled={testing}
+            onClick={handleTest}
+          >
+            {testing ? t("notifications.sending") : t("notifications.sendFleetTest")}
+          </button>
         </div>
       )}
 
@@ -448,14 +492,16 @@ export default function NotificationsPage() {
           <button type="submit" className="btn" disabled={saving}>
             {saving ? t("common.saving") : t("common.save")}
           </button>
-          <button
-            type="button"
-            className="btn btn-secondary"
-            disabled={testing || (localBotRequired && !enabled)}
-            onClick={handleTest}
-          >
-            {testing ? t("notifications.sending") : t("notifications.sendTest")}
-          </button>
+          {!isMaster && (
+            <button
+              type="button"
+              className="btn btn-secondary"
+              disabled={testing || (localBotRequired && !enabled)}
+              onClick={handleTest}
+            >
+              {testing ? t("notifications.sending") : t("notifications.sendTest")}
+            </button>
+          )}
         </div>
       </form>
     </div>

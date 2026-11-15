@@ -72,6 +72,44 @@ func TestSendTextUsesHubRelayWhenHandled(t *testing.T) {
 	}
 }
 
+type testFleetProvider struct {
+	info     FleetTestInfo
+	isMaster bool
+}
+
+func (p testFleetProvider) CollectFleetNotificationTest(context.Context) (FleetTestInfo, bool, error) {
+	return p.info, p.isMaster, nil
+}
+
+func TestSendTestFleetViaHub(t *testing.T) {
+	t.Parallel()
+
+	hub := &testHubRelay{handled: true}
+	svc := &Service{
+		hub: hub,
+		fleet: testFleetProvider{
+			isMaster: true,
+			info: FleetTestInfo{
+				MasterName:   "Main",
+				HubName:      "HubPanel",
+				DeliveryHint: "hub panel HubPanel",
+				ViaMaster:    []string{"Node-A"},
+				Local:        []string{"Main (Master)"},
+			},
+		},
+	}
+	res, err := svc.SendTest(context.Background())
+	if err != nil {
+		t.Fatalf("SendTest() error = %v", err)
+	}
+	if res.Kind != "fleet" || res.Status != "sent" {
+		t.Fatalf("result = %+v", res)
+	}
+	if !strings.Contains(hub.text, "Node-A") || !strings.Contains(hub.text, "HubPanel") {
+		t.Fatalf("fleet message = %q", hub.text)
+	}
+}
+
 func TestRelayFromMasterRejectsEmpty(t *testing.T) {
 	t.Parallel()
 

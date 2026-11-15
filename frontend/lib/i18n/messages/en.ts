@@ -532,6 +532,14 @@ export const en = {
     useBrowserTimezone: "Use this browser’s timezone ({tz})",
     alertOnIncident: "Alert on incident (unhealthy or degraded status)",
     sendTest: "Send test",
+    sendFleetTest: "Send fleet test to Telegram",
+    fleetTestTitle: "Fleet Telegram test",
+    fleetTestHint:
+      "Sends one message through the selected Telegram panel. Lists Master and every Barn panel that routes alerts via Master.",
+    fleetTestSent: "Fleet test sent to Telegram",
+    fleetTestHub: "Delivery via “{panel}”.",
+    fleetTestViaMaster: "Via master: {list}.",
+    fleetTestViaMasterNone: "No remote panels currently route via Master.",
     sending: "Sending…",
   },
   backups: {
