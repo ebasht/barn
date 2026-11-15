@@ -46,6 +46,14 @@ type FleetTestProvider interface {
 	CollectFleetNotificationTest(ctx context.Context) (info FleetTestInfo, isMaster bool, err error)
 }
 
+// FleetDigestProvider supplies remote Barn panel digest texts for Master fleet digests.
+type FleetDigestProvider interface {
+	CollectRemoteDigestTexts(ctx context.Context) (texts []string, isMaster bool, err error)
+}
+
+// telegramMaxMessageLen is Telegram's HTML message limit; leave headroom for safety.
+const telegramMaxMessageLen = 4000
+
 const (
 	alertRouteLocal    = "local"
 	alertRouteMaster   = "master"
@@ -61,6 +69,7 @@ type Service struct {
 	alertGate     LocalAlertGate
 	hub           HubRelay
 	fleet         FleetTestProvider
+	fleetDigest   FleetDigestProvider
 	serversEvents ServersEventSink
 	defaultName   func(context.Context) string
 	serverSummary func(context.Context) ([]ServerSummaryItem, bool, error)
@@ -98,6 +107,10 @@ func (s *Service) SetHubRelay(hub HubRelay) {
 
 func (s *Service) SetFleetTestProvider(p FleetTestProvider) {
 	s.fleet = p
+}
+
+func (s *Service) SetFleetDigestProvider(p FleetDigestProvider) {
+	s.fleetDigest = p
 }
 
 func (s *Service) SetServersEventSink(sink ServersEventSink) {
@@ -223,20 +236,19 @@ type TestSendResult struct {
 }
 
 func (s *Service) SendTest(ctx context.Context) (TestSendResult, error) {
-	settings, _, err := s.loadTelegramConfig(ctx)
-	if err != nil && !errors.Is(err, ErrNotConfigured) {
-		return TestSendResult{}, err
+	route := s.localAlertRoute(ctx)
+	// Via-master / disabled panels never send digests themselves — Master polls them.
+	if route == alertRouteMaster {
+		return TestSendResult{}, fmt.Errorf("digest test is only sent from Master (this panel routes via master)")
 	}
-	items, names, err := s.collectDigestItems(ctx)
+	if route == alertRouteDisabled {
+		return TestSendResult{}, fmt.Errorf("notifications are disabled on this panel")
+	}
+
+	text, err := s.BuildDigestText(ctx)
 	if err != nil {
 		return TestSendResult{}, err
 	}
-	servers, err := s.collectServerSummary(ctx)
-	if err != nil {
-		return TestSendResult{}, err
-	}
-	// Same body as the scheduled daily digest — only delivery path may differ (hub).
-	text := formatDigest(settings.DailyDigestMode, s.panelName(ctx, settings.PanelName), items, names, servers, time.Now().UTC(), settings.DailyDigestTimezone)
 
 	if s.fleet != nil {
 		info, isMaster, err := s.fleet.CollectFleetNotificationTest(ctx)
@@ -244,6 +256,10 @@ func (s *Service) SendTest(ctx context.Context) (TestSendResult, error) {
 			return TestSendResult{}, err
 		}
 		if isMaster {
+			text, err = s.joinFleetDigest(ctx, text)
+			if err != nil {
+				return TestSendResult{}, err
+			}
 			if err := s.deliverUserTelegram(ctx, text); err != nil {
 				return TestSendResult{}, err
 			}
@@ -263,6 +279,64 @@ func (s *Service) SendTest(ctx context.Context) (TestSendResult, error) {
 		return TestSendResult{}, err
 	}
 	return TestSendResult{Status: "sent", Kind: "local"}, nil
+}
+
+// BuildDigestText returns this panel's status digest (sites/DBs/servers) without sending.
+func (s *Service) BuildDigestText(ctx context.Context) (string, error) {
+	settings, _, err := s.loadTelegramConfig(ctx)
+	if err != nil && !errors.Is(err, ErrNotConfigured) {
+		return "", err
+	}
+	items, names, err := s.collectDigestItems(ctx)
+	if err != nil {
+		return "", err
+	}
+	servers, err := s.collectServerSummary(ctx)
+	if err != nil {
+		return "", err
+	}
+	return formatDigest(
+		settings.DailyDigestMode,
+		s.panelName(ctx, settings.PanelName),
+		items,
+		names,
+		servers,
+		time.Now().UTC(),
+		settings.DailyDigestTimezone,
+	), nil
+}
+
+// joinFleetDigest prepends remote Barn digests and keeps Master's digest last.
+func (s *Service) joinFleetDigest(ctx context.Context, localText string) (string, error) {
+	if s.fleetDigest == nil {
+		return localText, nil
+	}
+	remotes, isMaster, err := s.fleetDigest.CollectRemoteDigestTexts(ctx)
+	if err != nil {
+		return "", err
+	}
+	if !isMaster {
+		return localText, nil
+	}
+	parts := make([]string, 0, len(remotes)+1)
+	for _, remote := range remotes {
+		if t := strings.TrimSpace(remote); t != "" {
+			parts = append(parts, t)
+		}
+	}
+	if t := strings.TrimSpace(localText); t != "" {
+		parts = append(parts, t)
+	}
+	return fitTelegramMessage(strings.Join(parts, "\n\n")), nil
+}
+
+func fitTelegramMessage(text string) string {
+	runes := []rune(text)
+	if len(runes) <= telegramMaxMessageLen {
+		return text
+	}
+	trimmed := strings.TrimSpace(string(runes[:telegramMaxMessageLen-40]))
+	return trimmed + "\n\n… (сообщение обрезано)"
 }
 
 // SendText sends an arbitrary message using the configured Telegram bot (if enabled).
@@ -317,7 +391,9 @@ func (s *Service) sendLocalTelegram(ctx context.Context, text string) error {
 
 func (s *Service) RunCheck(ctx context.Context) error {
 	route := s.localAlertRoute(ctx)
-	suppress := route != alertRouteLocal
+	// Managed nodes with notification_mode=master|disabled do not send digests or
+	// local Telegram; Master polls via-master panels and sends the fleet digest.
+	suppressLocalDelivery := !sendsLocalUserAlerts(route)
 
 	settings, _, err := s.loadTelegramConfig(ctx)
 	if err != nil {
@@ -325,7 +401,7 @@ func (s *Service) RunCheck(ctx context.Context) error {
 			return err
 		}
 		// Local bot may be unset when Master relays through a hub panel.
-		if !suppress && s.hub == nil {
+		if !suppressLocalDelivery && s.hub == nil {
 			return nil
 		}
 		// settings still holds the row when Telegram is merely unconfigured
@@ -338,12 +414,16 @@ func (s *Service) RunCheck(ctx context.Context) error {
 		return err
 	}
 
-	if !suppress && settings.DailyDigestEnabled && shouldSendDaily(settings.LastDailySentAt, settings.DailyDigestHour, settings.DailyDigestMinute, settings.DailyDigestTimezone, now) {
+	if sendsLocalUserAlerts(route) && settings.DailyDigestEnabled && shouldSendDaily(settings.LastDailySentAt, settings.DailyDigestHour, settings.DailyDigestMinute, settings.DailyDigestTimezone, now) {
 		servers, err := s.collectServerSummary(ctx)
 		if err != nil {
 			return err
 		}
 		msg := formatDigest(settings.DailyDigestMode, s.panelName(ctx, settings.PanelName), digestItems, names, servers, now, settings.DailyDigestTimezone)
+		// Master: poll every Barn panel, join digests, deliver via hub Telegram.
+		if msg, err = s.joinFleetDigest(ctx, msg); err != nil {
+			return fmt.Errorf("daily digest fleet: %w", err)
+		}
 		if err := s.deliverUserTelegram(ctx, msg); err != nil {
 			return fmt.Errorf("daily digest: %w", err)
 		}
@@ -362,7 +442,7 @@ func (s *Service) RunCheck(ctx context.Context) error {
 			if name == "" {
 				name = item.Key
 			}
-			if suppress {
+			if !sendsLocalUserAlerts(route) {
 				if route == alertRouteDisabled {
 					continue
 				}
@@ -602,6 +682,13 @@ func digestLocation(tz string) *time.Location {
 		return time.UTC
 	}
 	return loc
+}
+
+// sendsLocalUserAlerts is true when this panel delivers digests/incidents itself
+// (standalone, Master, or managed node with notification_mode=local).
+// Via-master panels must not send digests — Master includes them in the fleet digest.
+func sendsLocalUserAlerts(route string) bool {
+	return route == alertRouteLocal
 }
 
 func shouldSendDaily(last pgtype.Timestamptz, hour, minute int32, tz string, now time.Time) bool {

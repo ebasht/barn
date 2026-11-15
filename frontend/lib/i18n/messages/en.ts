@@ -493,7 +493,7 @@ export const en = {
     routeViaMaster:
       "Alerts from this panel go to Master — no local Telegram bot needed.",
     routeViaMasterHint:
-      "Master (or the hub panel selected there) sends Telegram. Change routing under Servers → Settings. If this panel is the group’s Telegram hub, open the bot form below.",
+      "This panel does not send its own daily digest. Master polls all Barns on schedule and sends one fleet message through its Telegram hub. Change routing under Servers → Settings. If this panel is the hub bot, open the form below.",
     routeDisabled: "User alerts are disabled on this panel.",
     routeDisabledHint:
       "Enable local delivery or “Route via master” under Servers → Settings.",
@@ -535,7 +535,7 @@ export const en = {
     sendFleetTest: "Send fleet test to Telegram",
     fleetTestTitle: "Fleet Telegram test",
     fleetTestHint:
-      "Sends the same status digest as the daily report, through the selected Telegram panel (Master alerts use the same hub).",
+      "Collects every Barn panel’s status digest into one message, sent through the selected Telegram hub.",
     fleetTestSent: "Fleet test sent to Telegram",
     fleetTestHub: "Delivery via “{panel}” (Master included).",
     fleetTestViaMaster: "Through hub: {list}.",
@@ -1130,9 +1130,9 @@ export const en = {
     notificationHubLocal: "This Master (local bot)",
     fleetDigestTest: "Fleet status digest",
     fleetDigestTestHint:
-      "Sends the same daily status digest (all nodes) through the Telegram hub above.",
+      "Same as the scheduled Master digest: polls every Barn, one Telegram message via the hub above. Panels set to “via master” do not send digests themselves.",
     sendFleetDigestTest: "Send test digest",
-    fleetDigestTestSent: "Status digest sent to Telegram.",
+    fleetDigestTestSent: "Fleet status digest sent to Telegram.",
     managedSettings: "Managed node settings",
     nodeDisplayName: "Display name",
     masterUrl: "Master URL",

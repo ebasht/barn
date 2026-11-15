@@ -156,6 +156,7 @@ func NewRouter(h Handlers, apiToken string, corsOrigins []string) http.Handler {
 			r.Route("/notifications", func(r chi.Router) {
 				r.Get("/settings", h.Notifications.GetSettings)
 				r.Put("/settings", h.Notifications.UpdateSettings)
+				r.Get("/digest", h.Notifications.Digest)
 				r.Post("/test", h.Notifications.SendTest)
 				r.Post("/relay", h.Notifications.Relay)
 				r.Get("/tunnel", h.Notifications.TunnelStatus)

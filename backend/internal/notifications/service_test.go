@@ -86,6 +86,71 @@ func TestFleetTestDeliversDigestShapedBodyViaHub(t *testing.T) {
 	}
 }
 
+type testFleetDigest struct {
+	texts    []string
+	isMaster bool
+}
+
+func (p testFleetDigest) CollectRemoteDigestTexts(context.Context) ([]string, bool, error) {
+	return p.texts, p.isMaster, nil
+}
+
+func TestJoinFleetDigestKeepsMasterLast(t *testing.T) {
+	t.Parallel()
+
+	svc := &Service{
+		fleetDigest: testFleetDigest{
+			isMaster: true,
+			texts: []string{
+				"<b>Barn — Третий амбар</b>\n✅ Всё ОК",
+				"<b>Barn — Barn vdsina</b>\n✅ Всё ОК",
+			},
+		},
+	}
+	got, err := svc.joinFleetDigest(context.Background(), "<b>Barn — Главный амбар</b>\n✅ Всё ОК")
+	if err != nil {
+		t.Fatalf("joinFleetDigest: %v", err)
+	}
+	want := "<b>Barn — Третий амбар</b>\n✅ Всё ОК\n\n<b>Barn — Barn vdsina</b>\n✅ Всё ОК\n\n<b>Barn — Главный амбар</b>\n✅ Всё ОК"
+	if got != want {
+		t.Fatalf("got %q, want %q", got, want)
+	}
+}
+
+func TestViaMasterDoesNotSendLocalDigest(t *testing.T) {
+	t.Parallel()
+	if sendsLocalUserAlerts(alertRouteMaster) {
+		t.Fatal("via-master panels must not send their own digests")
+	}
+	if sendsLocalUserAlerts(alertRouteDisabled) {
+		t.Fatal("disabled panels must not send digests")
+	}
+	if !sendsLocalUserAlerts(alertRouteLocal) {
+		t.Fatal("local route should send digests")
+	}
+}
+
+func TestSendTestRejectedWhenViaMaster(t *testing.T) {
+	t.Parallel()
+	svc := &Service{alertGate: testAlertGate(alertRouteMaster)}
+	_, err := svc.SendTest(context.Background())
+	if err == nil || !strings.Contains(err.Error(), "via master") {
+		t.Fatalf("expected via-master rejection, got %v", err)
+	}
+}
+
+func TestFitTelegramMessageTruncates(t *testing.T) {
+	t.Parallel()
+	long := strings.Repeat("а", telegramMaxMessageLen+50)
+	got := fitTelegramMessage(long)
+	if len([]rune(got)) > telegramMaxMessageLen {
+		t.Fatalf("still too long: %d", len([]rune(got)))
+	}
+	if !strings.Contains(got, "обрезано") {
+		t.Fatalf("expected truncation marker, got %q", got)
+	}
+}
+
 func TestRelayFromMasterRejectsEmpty(t *testing.T) {
 	t.Parallel()
 

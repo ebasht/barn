@@ -494,7 +494,7 @@ export const ru: Messages = {
     routeViaMaster:
       "Алерты с этой панели идут на Master — локальный Telegram-бот не нужен.",
     routeViaMasterHint:
-      "В Telegram пишет Master (или выбранная там hub-панель). Маршрут меняется в Servers → Settings. Если эта панель — Telegram-hub группы, откройте форму бота ниже.",
+      "Свой ежедневный дайджест эта панель не шлёт. Master по расписанию опрашивает все Barn и отправляет одно сообщение флота через свой Telegram-hub. Маршрут — в Servers → Settings. Если эта панель — hub-бот, откройте форму ниже.",
     routeDisabled: "Пользовательские алерты на этой панели выключены.",
     routeDisabledHint:
       "Включите локальную доставку или «Через master» в Servers → Settings.",
@@ -536,7 +536,7 @@ export const ru: Messages = {
     sendFleetTest: "Отправить тест флота в Telegram",
     fleetTestTitle: "Тест Telegram флота",
     fleetTestHint:
-      "Уходит тот же статусный дайджест, что и в ежедневном отчёте, через выбранную Telegram-панель (алерты Master — тем же hub).",
+      "Собирает статусный дайджест каждой Barn-панели в одно сообщение через выбранный Telegram-hub.",
     fleetTestSent: "Тест флота отправлен в Telegram",
     fleetTestHub: "Доставка через «{panel}» (Master тоже).",
     fleetTestViaMaster: "Через hub: {list}.",
@@ -1134,9 +1134,9 @@ export const ru: Messages = {
     notificationHubLocal: "Этот Master (локальный бот)",
     fleetDigestTest: "Статусный дайджест флота",
     fleetDigestTestHint:
-      "Уходит тот же ежедневный дайджест (все ноды) через Telegram-hub выше.",
+      "Как и по расписанию на Master: опрос всех Barn, одно сообщение через hub выше. Панели с «через master» сами дайджест не шлют.",
     sendFleetDigestTest: "Отправить тестовый дайджест",
-    fleetDigestTestSent: "Статусный дайджест отправлен в Telegram.",
+    fleetDigestTestSent: "Дайджест флота отправлен в Telegram.",
     managedSettings: "Настройки managed node",
     nodeDisplayName: "Отображаемое имя",
     masterUrl: "URL master",

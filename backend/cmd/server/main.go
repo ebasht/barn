@@ -132,7 +132,9 @@ func main() {
 	notifSvc.SetLocalAlertGate(serversSvc)
 	notifSvc.SetServersEventSink(serversSvc)
 	notifSvc.SetHubRelay(serversSvc)
-	notifSvc.SetFleetTestProvider(fleetNotificationTestAdapter{serversSvc})
+	fleetNotify := fleetNotificationTestAdapter{serversSvc}
+	notifSvc.SetFleetTestProvider(fleetNotify)
+	notifSvc.SetFleetDigestProvider(fleetNotify)
 	notifSvc.SetServerSummaryProvider(func(ctx context.Context) ([]notifications.ServerSummaryItem, bool, error) {
 		settings, err := serversSvc.GetSettings(ctx)
 		if err != nil {
@@ -231,4 +233,8 @@ func (a fleetNotificationTestAdapter) CollectFleetNotificationTest(ctx context.C
 		Unreachable:  info.Unreachable,
 		DeliveryHint: info.DeliveryHint,
 	}, true, nil
+}
+
+func (a fleetNotificationTestAdapter) CollectRemoteDigestTexts(ctx context.Context) ([]string, bool, error) {
+	return a.svc.CollectRemoteDigestTexts(ctx)
 }

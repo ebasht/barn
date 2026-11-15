@@ -50,6 +50,15 @@ func (h *NotificationsHandler) SendTest(w http.ResponseWriter, r *http.Request) 
 	writeJSON(w, http.StatusOK, result)
 }
 
+func (h *NotificationsHandler) Digest(w http.ResponseWriter, r *http.Request) {
+	text, err := h.notifications.BuildDigestText(r.Context())
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]string{"text": text})
+}
+
 func (h *NotificationsHandler) Relay(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		Text string `json:"text"`

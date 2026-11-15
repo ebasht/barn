@@ -54,13 +54,13 @@ See also [barn-agent.md](./barn-agent.md).
 
 `notification_mode`:
 
-- `local` — existing Telegram worker
-- `master` — managed node enqueues events to Master outbox; Master dedups incidents and sends Telegram
+- `local` — panel sends its own digests/incidents with its Telegram bot
+- `master` — panel does **not** send digests itself; incidents go to Master outbox. Master polls the panel for status and includes it in the fleet digest
 - `disabled` — no user alerts
 
 On Master, optional `notification_hub_node_id` selects a Barn panel in the group that owns the Telegram bot. Master (and fleet alerts routed via Master) POST `/api/notifications/relay` to that panel; the hub panel sends with its local bot. Empty / local node = Master’s own Telegram.
 
-Master `POST /api/notifications/test` sends a fleet test through that hub and lists remote Barn panels whose `notification_mode` is `master`.
+On Master schedule (and `POST /api/notifications/test`): Master polls every Barn panel (`GET /api/notifications/digest` or health fallback), joins digests into one Telegram message (Master last), and sends through the hub.
 
 ## Env
 
