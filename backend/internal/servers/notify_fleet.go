@@ -63,13 +63,12 @@ func (s *Service) CollectFleetNotificationTest(ctx context.Context) (FleetNotifi
 	out.HubName = hubName
 	out.HubIsLocal = hubLocal
 	if hubLocal {
-		out.DeliveryHint = "Master local Telegram"
+		out.DeliveryHint = "Master local Telegram bot"
 	} else {
-		out.DeliveryHint = "hub panel " + hubName
+		// Master digests/incidents also go through the hub — no separate toggle.
+		out.DeliveryHint = "hub panel " + hubName + " (includes Master)"
+		out.ViaMaster = append(out.ViaMaster, out.MasterName+" (Master)")
 	}
-
-	// Master itself always delivers through hub/local (not "via master").
-	out.Local = append(out.Local, out.MasterName+" (Master)")
 
 	nodes, err := s.q.ListServersNodes(ctx)
 	if err != nil {

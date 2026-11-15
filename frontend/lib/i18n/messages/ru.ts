@@ -536,11 +536,11 @@ export const ru: Messages = {
     sendFleetTest: "Отправить тест флота в Telegram",
     fleetTestTitle: "Тест Telegram флота",
     fleetTestHint:
-      "Одно сообщение уходит через выбранную Telegram-панель. В тексте — Master и все панели Barn с маршрутом «через master».",
+      "Уходит тот же статусный дайджест, что и в ежедневном отчёте, через выбранную Telegram-панель (алерты Master — тем же hub).",
     fleetTestSent: "Тест флота отправлен в Telegram",
-    fleetTestHub: "Доставка через «{panel}».",
-    fleetTestViaMaster: "Через master: {list}.",
-    fleetTestViaMasterNone: "Нет удалённых панелей с маршрутом через Master.",
+    fleetTestHub: "Доставка через «{panel}» (Master тоже).",
+    fleetTestViaMaster: "Через hub: {list}.",
+    fleetTestViaMasterNone: "Только Master; удалённых панелей с «через master» нет.",
     sending: "Отправка…",
   },
   backups: {
@@ -1130,8 +1130,8 @@ export const ru: Messages = {
       "«Через master» — алерты уходят на Master; Telegram настраивается только на Master или его hub-панели.",
     notificationHub: "Отправлять Telegram с",
     notificationHubHint:
-      "Алерты Master и флота уходят ботом выбранной панели. Можно выбрать панель из группы или оставить этот Master.",
-    notificationHubLocal: "Этот Master",
+      "Дайджесты и инциденты самого Master и все панели с «через master» уходят ботом этой панели. Отдельного переключателя для Master нет — выбор hub уже включает Master.",
+    notificationHubLocal: "Этот Master (локальный бот)",
     managedSettings: "Настройки managed node",
     nodeDisplayName: "Отображаемое имя",
     masterUrl: "URL master",

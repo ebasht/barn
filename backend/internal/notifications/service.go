@@ -223,13 +223,27 @@ type TestSendResult struct {
 }
 
 func (s *Service) SendTest(ctx context.Context) (TestSendResult, error) {
+	settings, _, err := s.loadTelegramConfig(ctx)
+	if err != nil && !errors.Is(err, ErrNotConfigured) {
+		return TestSendResult{}, err
+	}
+	items, names, err := s.collectDigestItems(ctx)
+	if err != nil {
+		return TestSendResult{}, err
+	}
+	servers, err := s.collectServerSummary(ctx)
+	if err != nil {
+		return TestSendResult{}, err
+	}
+	// Same body as the scheduled daily digest — only delivery path may differ (hub).
+	text := formatDigest(settings.DailyDigestMode, s.panelName(ctx, settings.PanelName), items, names, servers, time.Now().UTC(), settings.DailyDigestTimezone)
+
 	if s.fleet != nil {
 		info, isMaster, err := s.fleet.CollectFleetNotificationTest(ctx)
 		if err != nil {
 			return TestSendResult{}, err
 		}
 		if isMaster {
-			text := formatFleetTestMessage(info)
 			if err := s.deliverUserTelegram(ctx, text); err != nil {
 				return TestSendResult{}, err
 			}
@@ -245,53 +259,10 @@ func (s *Service) SendTest(ctx context.Context) (TestSendResult, error) {
 		}
 	}
 
-	settings, _, err := s.loadTelegramConfig(ctx)
-	if err != nil && !errors.Is(err, ErrNotConfigured) {
-		return TestSendResult{}, err
-	}
-	items, names, err := s.collectDigestItems(ctx)
-	if err != nil {
-		return TestSendResult{}, err
-	}
-	servers, err := s.collectServerSummary(ctx)
-	if err != nil {
-		return TestSendResult{}, err
-	}
-	text := formatDigest(settings.DailyDigestMode, s.panelName(ctx, settings.PanelName), items, names, servers, time.Now().UTC(), settings.DailyDigestTimezone)
 	if err := s.SendText(ctx, text); err != nil {
 		return TestSendResult{}, err
 	}
 	return TestSendResult{Status: "sent", Kind: "local"}, nil
-}
-
-func formatFleetTestMessage(info FleetTestInfo) string {
-	var b strings.Builder
-	b.WriteString("<b>Barn — fleet notification test</b>\n")
-	b.WriteString("Master: ")
-	b.WriteString(escapeHTML(info.MasterName))
-	b.WriteString("\nDelivery: ")
-	b.WriteString(escapeHTML(info.DeliveryHint))
-	b.WriteString("\n")
-	writeFleetList(&b, "Via master (→ hub)", info.ViaMaster)
-	writeFleetList(&b, "Local bot on panel", info.Local)
-	writeFleetList(&b, "Disabled", info.Disabled)
-	writeFleetList(&b, "Unreachable", info.Unreachable)
-	b.WriteString("\nIf you see this in Telegram, hub delivery works.")
-	return b.String()
-}
-
-func writeFleetList(b *strings.Builder, title string, names []string) {
-	if len(names) == 0 {
-		return
-	}
-	b.WriteString("\n<b>")
-	b.WriteString(escapeHTML(title))
-	b.WriteString("</b>\n")
-	for _, name := range names {
-		b.WriteString("• ")
-		b.WriteString(escapeHTML(name))
-		b.WriteString("\n")
-	}
 }
 
 // SendText sends an arbitrary message using the configured Telegram bot (if enabled).

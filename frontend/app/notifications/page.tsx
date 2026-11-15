@@ -6,12 +6,20 @@ import { api, ApiError } from "@/lib/api";
 import { browserTimezone, listTimezones, resolveDigestTimezone } from "@/lib/timezone";
 import { useI18n } from "@/lib/i18n/context";
 import { useServersMode } from "@/lib/servers-mode";
-import type { NotificationSettings, UpdateNotificationSettings } from "@/lib/types";
+import type {
+  NotificationSettings,
+  ServerNode,
+  UpdateNotificationSettings,
+} from "@/lib/types";
 
 export default function NotificationsPage() {
   const { t } = useI18n();
-  const { settings: serversSettings, isMaster, loading: serversLoading } =
-    useServersMode();
+  const {
+    settings: serversSettings,
+    isMaster,
+    loading: serversLoading,
+    refresh: refreshServers,
+  } = useServersMode();
   const [settings, setSettings] = useState<NotificationSettings | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
@@ -20,6 +28,9 @@ export default function NotificationsPage() {
   const [testOk, setTestOk] = useState(false);
   const [testSummary, setTestSummary] = useState<string | null>(null);
   const [hubPanelName, setHubPanelName] = useState<string | null>(null);
+  const [hubNodeId, setHubNodeId] = useState("");
+  const [hubPanels, setHubPanels] = useState<ServerNode[]>([]);
+  const [savingHub, setSavingHub] = useState(false);
   const [showHubBotForm, setShowHubBotForm] = useState(false);
 
   const [panelName, setPanelName] = useState("");
@@ -78,8 +89,12 @@ export default function NotificationsPage() {
   }, [load]);
 
   useEffect(() => {
-    const hubId = serversSettings.notification_hub_node_id;
-    if (!isMaster || !hubId) {
+    setHubNodeId(serversSettings.notification_hub_node_id || "");
+  }, [serversSettings.notification_hub_node_id]);
+
+  useEffect(() => {
+    if (!isMaster) {
+      setHubPanels([]);
       setHubPanelName(null);
       return;
     }
@@ -88,16 +103,42 @@ export default function NotificationsPage() {
       try {
         const nodes = await api.listServerNodes();
         if (cancelled) return;
-        const hub = nodes.find((n) => n.id === hubId);
-        setHubPanelName(hub?.name ?? null);
+        const panels = nodes.filter(
+          (n) =>
+            n.connection_type === "local" ||
+            n.connection_type === "barn" ||
+            n.connection_type === "dockpilot",
+        );
+        setHubPanels(panels);
+        const hubId = serversSettings.notification_hub_node_id;
+        setHubPanelName(hubId ? panels.find((n) => n.id === hubId)?.name ?? null : null);
       } catch {
-        if (!cancelled) setHubPanelName(null);
+        if (!cancelled) {
+          setHubPanels([]);
+          setHubPanelName(null);
+        }
       }
     })();
     return () => {
       cancelled = true;
     };
   }, [isMaster, serversSettings.notification_hub_node_id]);
+
+  const saveHub = async () => {
+    setSavingHub(true);
+    setError(null);
+    setSaved(false);
+    setTestOk(false);
+    try {
+      await api.updateServersSettings({ notification_hub_node_id: hubNodeId });
+      await refreshServers();
+      setSaved(true);
+    } catch (e) {
+      setError(e instanceof ApiError ? e.message : t("notifications.saveFailed"));
+    } finally {
+      setSavingHub(false);
+    }
+  };
 
   const buildPayload = (): UpdateNotificationSettings => ({
     panel_name: panelName.trim(),
@@ -432,19 +473,45 @@ export default function NotificationsPage() {
         </div>
       )}
 
-      {usesRemoteHub && (
-        <div className="alert" style={{ marginTop: "1rem" }}>
-          <p style={{ margin: 0 }}>
-            {t("notifications.routeViaHub", {
-              panel: hubPanelName || t("notifications.hubPanelFallback"),
-            })}
+      {isMaster && (
+        <div className="card" style={{ marginTop: "1rem" }}>
+          <h2 className="section-title">{t("servers.notificationHub")}</h2>
+          <p className="muted" style={{ marginTop: 0 }}>
+            {t("servers.notificationHubHint")}
           </p>
-          <p className="muted" style={{ margin: "0.5rem 0 0", fontSize: "0.875rem" }}>
-            {t("notifications.routeViaHubHint")}
-          </p>
-          <p style={{ margin: "0.75rem 0 0" }}>
-            <Link href="/servers/settings">{t("notifications.openServersSettings")}</Link>
-          </p>
+          <div className="field">
+            <label className="label" htmlFor="notify-hub">
+              {t("servers.notificationHub")}
+            </label>
+            <select
+              id="notify-hub"
+              className="input"
+              value={hubNodeId}
+              onChange={(e) => setHubNodeId(e.target.value)}
+            >
+              <option value="">{t("servers.notificationHubLocal")}</option>
+              {hubPanels
+                .filter((n) => n.connection_type !== "local")
+                .map((n) => (
+                  <option key={n.id} value={n.id}>
+                    {n.name}
+                  </option>
+                ))}
+            </select>
+          </div>
+          <div className="form-actions" style={{ marginTop: "0.75rem" }}>
+            <button
+              type="button"
+              className="btn"
+              disabled={savingHub || hubNodeId === (serversSettings.notification_hub_node_id || "")}
+              onClick={saveHub}
+            >
+              {savingHub ? t("common.saving") : t("common.save")}
+            </button>
+            <Link href="/servers/settings" className="btn btn-secondary">
+              {t("notifications.openServersSettings")}
+            </Link>
+          </div>
         </div>
       )}
 
@@ -454,6 +521,13 @@ export default function NotificationsPage() {
           <p className="muted" style={{ marginTop: 0 }}>
             {t("notifications.fleetTestHint")}
           </p>
+          {usesRemoteHub && (
+            <p className="muted" style={{ fontSize: "0.875rem" }}>
+              {t("notifications.routeViaHub", {
+                panel: hubPanelName || t("notifications.hubPanelFallback"),
+              })}
+            </p>
+          )}
           <button
             type="button"
             className="btn"

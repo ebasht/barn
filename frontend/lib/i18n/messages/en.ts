@@ -535,11 +535,11 @@ export const en = {
     sendFleetTest: "Send fleet test to Telegram",
     fleetTestTitle: "Fleet Telegram test",
     fleetTestHint:
-      "Sends one message through the selected Telegram panel. Lists Master and every Barn panel that routes alerts via Master.",
+      "Sends the same status digest as the daily report, through the selected Telegram panel (Master alerts use the same hub).",
     fleetTestSent: "Fleet test sent to Telegram",
-    fleetTestHub: "Delivery via “{panel}”.",
-    fleetTestViaMaster: "Via master: {list}.",
-    fleetTestViaMasterNone: "No remote panels currently route via Master.",
+    fleetTestHub: "Delivery via “{panel}” (Master included).",
+    fleetTestViaMaster: "Through hub: {list}.",
+    fleetTestViaMasterNone: "Only Master is covered; no remote panels route via Master.",
     sending: "Sending…",
   },
   backups: {
@@ -1126,8 +1126,8 @@ export const en = {
       "“Via master” forwards alerts to Master — configure Telegram only on Master or its hub panel.",
     notificationHub: "Send Telegram from",
     notificationHubHint:
-      "All Master and fleet alerts are sent by the selected panel’s bot. Choose a group panel or keep this Master.",
-    notificationHubLocal: "This Master",
+      "Master’s own digests/incidents and all panels set to “via master” are sent by this panel’s bot. No separate Master toggle — picking a hub covers Master too.",
+    notificationHubLocal: "This Master (local bot)",
     managedSettings: "Managed node settings",
     nodeDisplayName: "Display name",
     masterUrl: "Master URL",
