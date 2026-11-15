@@ -567,6 +567,152 @@ issue_panel_cert() {
   certbot --nginx -d "$domain" --non-interactive --agree-tos -m "$email" --redirect --no-eff-email
 }
 
+# Optional PANEL_SSL_LISTEN (e.g. 127.0.0.1:4443): bind panel TLS there instead of
+# public :443. Use when another host service already owns :443 and forwards to the panel.
+issue_panel_cert_webroot() {
+  local domain="$1" email="$2"
+  remove_conf_d_hash_snippets
+  comment_all_nginx_hash_directives
+  ensure_nginx_config_valid || die "nginx -t failed before certbot — fix /etc/nginx manually"
+  ensure_ufw_http_https
+  mkdir -p /var/www/certbot
+  certbot certonly --webroot -w /var/www/certbot -d "$domain" \
+    --non-interactive --agree-tos -m "$email" --keep-until-expiring --no-eff-email
+}
+
+apply_panel_ssl_listen() {
+  local domain="$1" listen_addr="$2"
+  local conf="/etc/nginx/sites-available/barn-panel.conf"
+  local fullchain="/etc/letsencrypt/live/${domain}/fullchain.pem"
+  local privkey="/etc/letsencrypt/live/${domain}/privkey.pem"
+
+  [[ -n "$listen_addr" ]] || return 0
+  [[ -f "$conf" ]] || return 0
+  [[ -f "$fullchain" && -f "$privkey" ]] || die "TLS cert missing for ${domain} (${fullchain})"
+
+  if grep -qE 'listen[[:space:]]+[^;]+[[:space:]]+ssl' "$conf"; then
+    # Remap any existing SSL listen (incl. certbot's public :443) to PANEL_SSL_LISTEN.
+    sed -i -E \
+      -e 's/listen[[:space:]]+[^;]+[[:space:]]+ssl;/listen '"${listen_addr}"' ssl;/' \
+      -e '/listen[[:space:]]+\[::\]:[0-9]+[[:space:]]+ssl;/d' \
+      "$conf"
+  else
+    # HTTP-only template after webroot issue — append a TLS server with the same proxies.
+    python3 - "$conf" "$domain" "$listen_addr" "$fullchain" "$privkey" <<'PY'
+import pathlib, re, sys
+conf_path, domain, listen, fullchain, privkey = sys.argv[1:6]
+text = pathlib.Path(conf_path).read_text()
+# Copy location blocks from the first server { ... }
+m = re.search(r"server\s*\{", text)
+if not m:
+    raise SystemExit("no server block in panel nginx conf")
+# naive extract: from first server to its matching close — use depth walk
+start = m.start()
+depth = 0
+end = None
+for i, ch in enumerate(text[start:], start):
+    if ch == "{":
+        depth += 1
+    elif ch == "}":
+        depth -= 1
+        if depth == 0:
+            end = i + 1
+            break
+if end is None:
+    raise SystemExit("unterminated server block")
+body = text[start:end]
+# strip listen/server_name from clone; keep locations
+locs = "\n".join(
+    line for line in body.splitlines()
+    if not re.match(r"\s*listen\b", line)
+    and not re.match(r"\s*server_name\b", line)
+    and line.strip() not in ("server {", "}")
+)
+ssl_server = f"""
+
+server {{
+    listen {listen} ssl;
+    server_name {domain};
+    ssl_certificate {fullchain};
+    ssl_certificate_key {privkey};
+    include /etc/letsencrypt/options-ssl-nginx.conf;
+    ssl_dhparam /etc/letsencrypt/ssl-dhparams.pem;
+
+{locs}
+}}
+"""
+    # HTTP → HTTPS redirect on :80
+    http = re.sub(
+        r"(server_name\s+" + re.escape(domain) + r"\s*;)",
+        r"\1\n    return 301 https://$host$request_uri;",
+        text[start:end],
+        count=1,
+    )
+    # Drop proxy locations from :80 after redirect — keep ACME only
+    http_lines = []
+    skip_loc = False
+    brace = 0
+    for line in http.splitlines():
+        if re.match(r"\s*location\b", line) and "acme-challenge" not in line:
+            skip_loc = True
+            brace = line.count("{") - line.count("}")
+            continue
+        if skip_loc:
+            brace += line.count("{") - line.count("}")
+            if brace <= 0:
+                skip_loc = False
+            continue
+        if re.match(r"\s*# DB dump", line):
+            continue
+        http_lines.append(line)
+    http = "\n".join(http_lines)
+    pathlib.Path(conf_path).write_text(text[:start] + http + text[end:] + ssl_server)
+PY
+  fi
+
+  # Ensure :80 still serves ACME when redirect is present.
+  if ! grep -q 'acme-challenge' "$conf"; then
+    sed -i '/server_name '"${domain}"';/a\    location ^~ /.well-known/acme-challenge/ { root /var/www/certbot; default_type "text/plain"; try_files $uri =404; }' "$conf"
+  fi
+
+  install_panel_ssl_listen_certbot_hook
+  ensure_nginx_config_valid || die "nginx -t failed after PANEL_SSL_LISTEN=${listen_addr}"
+  systemctl reload nginx
+  log "Panel TLS listen: ${listen_addr}"
+}
+
+install_panel_ssl_listen_certbot_hook() {
+  local hook_dir="/etc/letsencrypt/renewal-hooks/deploy"
+  local hook="${hook_dir}/barn-panel-ssl-listen.sh"
+  mkdir -p "$hook_dir"
+  cat >"$hook" <<'EOF'
+#!/usr/bin/env bash
+# Honor PANEL_SSL_LISTEN from Barn/DockPilot .env after certificate renew.
+set -euo pipefail
+CONF="/etc/nginx/sites-available/barn-panel.conf"
+[[ -f "$CONF" ]] || exit 0
+LISTEN=""
+for envf in /opt/barn/.env /opt/dock-pilot/.env; do
+  if [[ -f "$envf" ]]; then
+    # shellcheck disable=SC1090
+    LISTEN="$(set -a; # shellcheck source=/dev/null
+      source "$envf" >/dev/null 2>&1; set +a; printf '%s' "${PANEL_SSL_LISTEN:-}")"
+    [[ -n "$LISTEN" ]] && break
+  fi
+done
+[[ -n "$LISTEN" ]] || exit 0
+if grep -qE 'listen[[:space:]]+[^;]+[[:space:]]+ssl' "$CONF"; then
+  sed -i -E \
+    -e 's/listen[[:space:]]+[^;]+[[:space:]]+ssl;/listen '"${LISTEN}"' ssl;/' \
+    -e '/listen[[:space:]]+\[::\]:[0-9]+[[:space:]]+ssl;/d' \
+    "$CONF"
+fi
+nginx -t
+systemctl reload nginx
+EOF
+  chmod 755 "$hook"
+}
+
 # Open HTTP/HTTPS (and SSH) via ufw so Let's Encrypt can reach ACME on :80.
 # OpenSSH is allowed before enable to avoid locking out the installer.
 ensure_ufw_http_https() {
@@ -697,8 +843,16 @@ configure_panel_nginx() {
   fi
 
   log "Issuing Let's Encrypt certificate for ${domain} ..."
-  if ! issue_panel_cert "$domain" "$email"; then
-    die "certbot failed for ${domain}. Check DNS → this VPS, ports 80/443 open, and: certbot --nginx -d ${domain}"
+  if [[ -n "${PANEL_SSL_LISTEN:-}" ]]; then
+    # Custom TLS bind (not public :443): webroot ACME, then listen on PANEL_SSL_LISTEN.
+    if ! issue_panel_cert_webroot "$domain" "$email"; then
+      die "certbot webroot failed for ${domain}. Check DNS → this VPS and port 80"
+    fi
+    apply_panel_ssl_listen "$domain" "$PANEL_SSL_LISTEN"
+  else
+    if ! issue_panel_cert "$domain" "$email"; then
+      die "certbot failed for ${domain}. Check DNS → this VPS, ports 80/443 open, and: certbot --nginx -d ${domain}"
+    fi
   fi
 
   log "TLS certificate installed for ${domain}"

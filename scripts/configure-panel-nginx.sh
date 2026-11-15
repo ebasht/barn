@@ -90,7 +90,19 @@ else
 fi
 
 sed -i "s|^CORS_ALLOWED_ORIGINS=.*|CORS_ALLOWED_ORIGINS=${CORS_ORIGINS}|" .env
-docker compose -f docker-compose.full.yml up -d api 2>/dev/null \
-  || docker compose -f docker-compose.dock-pilot.yml up -d api
+# Recreate api so CORS_ALLOWED_ORIGINS from .env is picked up (same compose
+# resolution as barn-up.sh — Barn installs often only have barn-full.yml).
+COMPOSE_FILE=""
+for f in docker-compose.barn-full.yml docker-compose.full.yml docker-compose.barn.yml docker-compose.dock-pilot.yml; do
+  if [[ -f "$f" ]]; then
+    COMPOSE_FILE="$f"
+    break
+  fi
+done
+if [[ -n "$COMPOSE_FILE" ]]; then
+  docker compose -f "$COMPOSE_FILE" up -d --no-deps api
+else
+  log "WARN: no compose file found — skip api recreate; set CORS manually if needed"
+fi
 log "Panel: ${PANEL_URL}"
 [[ -n "${API_TOKEN:-}" ]] && write_credentials_file "$ROOT" "$PANEL_URL" "$API_TOKEN"
