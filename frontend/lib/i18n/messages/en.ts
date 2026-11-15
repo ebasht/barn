@@ -1128,6 +1128,11 @@ export const en = {
     notificationHubHint:
       "Master’s own digests/incidents and all panels set to “via master” are sent by this panel’s bot. No separate Master toggle — picking a hub covers Master too.",
     notificationHubLocal: "This Master (local bot)",
+    fleetDigestTest: "Fleet status digest",
+    fleetDigestTestHint:
+      "Sends the same daily status digest (all nodes) through the Telegram hub above.",
+    sendFleetDigestTest: "Send test digest",
+    fleetDigestTestSent: "Status digest sent to Telegram.",
     managedSettings: "Managed node settings",
     nodeDisplayName: "Display name",
     masterUrl: "Master URL",

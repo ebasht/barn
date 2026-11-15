@@ -29,6 +29,7 @@ export default function ServersSettingsPage() {
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [testing, setTesting] = useState(false);
   const [pairing, setPairing] = useState<ServersPairingCode | null>(null);
   const [confirmDisable, setConfirmDisable] = useState(false);
   const [confirmDisconnect, setConfirmDisconnect] = useState(false);
@@ -154,6 +155,33 @@ export default function ServersSettingsPage() {
       master_url: masterUrl.trim(),
       notification_mode: notificationMode,
     });
+  };
+
+  const sendFleetDigestTest = async () => {
+    setTesting(true);
+    setError(null);
+    setMessage(null);
+    try {
+      const result = await api.sendNotificationTest();
+      const parts = [
+        t("servers.fleetDigestTestSent"),
+        result.hub
+          ? t("notifications.fleetTestHub", { panel: result.hub })
+          : null,
+        result.via_master?.length
+          ? t("notifications.fleetTestViaMaster", {
+              list: result.via_master.join(", "),
+            })
+          : t("notifications.fleetTestViaMasterNone"),
+      ].filter(Boolean);
+      setMessage(parts.join(" "));
+    } catch (e) {
+      setError(
+        e instanceof ApiError ? e.message : t("notifications.testFailed"),
+      );
+    } finally {
+      setTesting(false);
+    }
   };
 
   return (
@@ -345,14 +373,30 @@ export default function ServersSettingsPage() {
               {t("servers.notificationHubHint")}
             </p>
           </div>
+          <div className="field">
+            <span className="label">{t("servers.fleetDigestTest")}</span>
+            <p className="muted" style={{ fontSize: "0.8rem", margin: "0 0 0.5rem" }}>
+              {t("servers.fleetDigestTestHint")}
+            </p>
+            <button
+              type="button"
+              className="btn btn-secondary"
+              disabled={busy || testing}
+              onClick={sendFleetDigestTest}
+            >
+              {testing
+                ? t("notifications.sending")
+                : t("servers.sendFleetDigestTest")}
+            </button>
+          </div>
           <div className="form-actions">
-            <button type="submit" className="btn" disabled={busy}>
+            <button type="submit" className="btn" disabled={busy || testing}>
               {busy ? t("common.saving") : t("common.save")}
             </button>
             <button
               type="button"
               className="btn btn-secondary"
-              disabled={busy}
+              disabled={busy || testing}
               onClick={() => setConfirmDisable(true)}
             >
               {t("servers.disableMaster")}

@@ -1132,6 +1132,11 @@ export const ru: Messages = {
     notificationHubHint:
       "Дайджесты и инциденты самого Master и все панели с «через master» уходят ботом этой панели. Отдельного переключателя для Master нет — выбор hub уже включает Master.",
     notificationHubLocal: "Этот Master (локальный бот)",
+    fleetDigestTest: "Статусный дайджест флота",
+    fleetDigestTestHint:
+      "Уходит тот же ежедневный дайджест (все ноды) через Telegram-hub выше.",
+    sendFleetDigestTest: "Отправить тестовый дайджест",
+    fleetDigestTestSent: "Статусный дайджест отправлен в Telegram.",
     managedSettings: "Настройки managed node",
     nodeDisplayName: "Отображаемое имя",
     masterUrl: "URL master",
